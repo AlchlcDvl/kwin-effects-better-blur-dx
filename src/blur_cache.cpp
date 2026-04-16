@@ -92,6 +92,12 @@ void BBDX::BlurCache::maybeInvalidateCache(KWin::BlurRenderData &renderInfo,
     if (!cacheData.opacity.has_value() || !qFuzzyCompare(cacheData.opacity.value(), opacity)) {
         cacheData.opacity = opacity;
         cacheData.invalidate();
+    }
+
+    // Fast path in case we invalidated earlier.
+    // Note that this should still come after opacity checks et al
+    // because those update data.
+    if (!cacheData.valid) {
         return;
     }
 
@@ -226,6 +232,11 @@ void BBDX::BlurCache::drawCached(const KWin::Rect &scaledBackgroundRect, const K
     // also bump cache hits
     renderInfo.cache.valid = true;
     renderInfo.cache.hits += 1;
+
+    // store current blit for next draw
+    // this is kinda ugly but there doesn't
+    // seem to be a simpler way to just deep copy a texture
+    renderInfo.cache.prevBlitTexture = KWin::GLTexture::upload(renderInfo.textures[0]->toImage());
 }
 
 void BBDX::BlurCache::drawToCache(const KWin::BlurRenderData &renderInfo, KWin::GLVertexBuffer *vbo) const {
