@@ -4,14 +4,13 @@
 #include "kwin_version.hpp"
 #include "utils.h"
 
-#include <core/renderviewport.h>
 #include <epoxy/gl.h>
-#include <epoxy/gl_generated.h>
+
+#include <core/renderviewport.h>
 #include <opengl/eglcontext.h>
 #include <opengl/glframebuffer.h>
 #include <opengl/glshadermanager.h>
-#include <qloggingcategory.h>
-#include <qobject.h>
+#include <opengl/gltexture.h>
 
 #if KWIN_VERSION < KWIN_VERSION_CODE(6, 5, 80)
 #  include "kwin_compat_6_5.hpp"
@@ -21,7 +20,6 @@
 
 #include <QLoggingCategory>
 #include <QtNumeric>
-#include <opengl/gltexture.h>
 
 Q_LOGGING_CATEGORY(BLUR_CACHE, "kwin_effect_better_blur_dx.blur_cache", QtInfoMsg)
 
@@ -174,7 +172,7 @@ void BBDX::BlurCache::maybeInvalidateCache(KWin::BlurRenderData &renderInfo,
     // and needs new-ish OpenGL 4.3 (https://registry.khronos.org/OpenGL-Refpages/gl4/html/glBeginQuery.xhtml)
     // so let's just use the slightly slower GL_ANY_SAMPLES_PASSED (OpenGL 3.3)
     glBeginQuery(GL_ANY_SAMPLES_PASSED, query);
-    
+
     // if the query isn't available just invalidate, not much we can do here
     if (glGetError() == GL_INVALID_ENUM) [[unlikely]] {
         qCWarning(BLUR_CACHE) << "OpenGL error: GL_ANY_SAMPLES_PASSED query not available";
