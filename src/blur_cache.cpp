@@ -242,12 +242,13 @@ void BBDX::BlurCache::selectCacheEntry(KWin::BlurRenderData &renderInfo,
      */
 
     auto &cache = renderInfo.cache;
+    std::unique_ptr<KWin::GLTexture> compareTexture{nullptr};
+    std::unique_ptr<KWin::GLFramebuffer> compareFramebuffer{nullptr};
 
     cache.reset();
     while (auto cacheEntry = cache.next()) {
         KWin::GLTexture *prevBlitTexture = cacheEntry->blitTexture.get();
-        KWin::GLFramebuffer *blitFramebuffer = renderInfo.framebuffers[0].get();
-        KWin::GLTexture *blitTexture = blitFramebuffer->colorAttachment();
+        KWin::GLTexture *blitTexture = renderInfo.framebuffers[0].get()->colorAttachment();
 
         // previous blit texture is definitely different
         if (!prevBlitTexture) {
@@ -266,11 +267,31 @@ void BBDX::BlurCache::selectCacheEntry(KWin::BlurRenderData &renderInfo,
             continue;
         }
 
+        // allocate a smaller framebuffer for the comparison
+        // blitTexture matches backgroundRect so we'll use that
+        if (!compareTexture || !compareFramebuffer) {
+            glClearColor(0, 0, 0, 0);
+            compareTexture = KWin::GLTexture::allocate(blitTexture->internalFormat(),
+                    QRect(0, 0, blitTexture->width() * m_textureCompareScaleFactor, blitTexture->height() * m_textureCompareScaleFactor).size());
+            if (!compareTexture) {
+                qCWarning(BLUR_CACHE) << BBDX::LOG_PREFIX << "Failed to allocate an offscreen texture";
+                continue;
+            }
+            compareTexture->setFilter(GL_LINEAR);
+            compareTexture->setWrapMode(GL_CLAMP_TO_EDGE);
+
+            compareFramebuffer = std::make_unique<KWin::GLFramebuffer>(compareTexture.get());
+            if (!compareFramebuffer->valid()) {
+                qCWarning(BLUR_CACHE) << BBDX::LOG_PREFIX << "Failed to create an offscreen framebuffer";
+                continue;
+            }
+        }
+
         // check if textures differ on the pixel level
         // we'll just (ab)use the provided framebuffer for this
         // as it *should* always be correct
         KWin::ShaderManager::instance()->pushShader(m_textureComparePass.shader.get());
-        KWin::GLFramebuffer::pushFramebuffer(blitFramebuffer);
+        KWin::GLFramebuffer::pushFramebuffer(compareFramebuffer.get());
 
         QMatrix4x4 projectionMatrix;
         projectionMatrix.ortho(QRectF(0.0, 0.0, blitTexture->width(), blitTexture->height()));
@@ -290,9 +311,6 @@ void BBDX::BlurCache::selectCacheEntry(KWin::BlurRenderData &renderInfo,
 
         GLuint query;
         glGenQueries(1, &query);
-
-        // don't acctually draw anything
-        glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
 
         // check for non-discarded pixels
         // GL_ANY_SAMPLES_PASSED_CONSERVATIVE is supposedly faster but
@@ -323,7 +341,6 @@ void BBDX::BlurCache::selectCacheEntry(KWin::BlurRenderData &renderInfo,
         }
 
 cleanup:
-        glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
         glDeleteQueries(1, &query);
         glActiveTexture(GL_TEXTURE0);
 
