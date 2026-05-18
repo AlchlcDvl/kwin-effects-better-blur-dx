@@ -8,6 +8,7 @@
 #include <sys/types.h>
 
 #include <core/renderviewport.h>
+#include <effect/effecthandler.h>
 #include <effect/effectwindow.h>
 #include <opengl/eglcontext.h>
 #include <opengl/glframebuffer.h>
@@ -239,6 +240,10 @@ void BBDX::BlurCacheLRU::invalidate(QStringView reason) {
                         << "Hits:" << totalHits << "across" << m_entries.size() << "cache entries" << "\n"
                         << "Reason:" << reason;
 
+    // invalidate can be called from various events outside
+    // the window paint pipeline so we need to explicitly
+    // make the context current to correctly drop framebuffers/textures
+    KWin::effects->makeOpenGLContextCurrent();
     m_entries.clear();
     reset();
 }
