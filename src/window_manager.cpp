@@ -36,7 +36,7 @@
 
 Q_LOGGING_CATEGORY(WINDOW_MANAGER, "kwin_effect_better_blur_dx.window_manager", QtInfoMsg)
 
-BBDX::WindowManager::WindowManager(KWin::BlurEffect *effect) {
+BBDX::WindowManager::WindowManager(BBDX::BlurEffect *effect) {
     m_effect = effect;
 
     // add existing windows
@@ -103,7 +103,7 @@ std::vector<BBDX::Window *> BBDX::WindowManager::windowsByStackingOrder() const 
 }
 
 void BBDX::WindowManager::reconfigure() {
-    auto config = KWin::BlurConfig::self();
+    auto config = BBDX::BlurConfig::self();
 
     if (!config) {
         qCWarning(WINDOW_MANAGER) << BBDX::LOG_PREFIX
@@ -276,7 +276,7 @@ void BBDX::WindowManager::triggerBlurRegionUpdate(KWin::EffectWindow *w) const {
 
 void BBDX::WindowManager::invalidateBlurCache(KWin::EffectWindow *w, QStringView reason) const {
     if (auto it = m_effect->m_windows.find(w); it != m_effect->m_windows.end()) {
-        KWin::BlurEffectData &blurInfo = it->second;
+        BBDX::BlurEffectData &blurInfo = it->second;
         for (auto &[_, renderInfo] : blurInfo.render) {
             renderInfo.cache.invalidate(reason);
         }

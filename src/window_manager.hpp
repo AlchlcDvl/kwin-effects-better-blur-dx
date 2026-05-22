@@ -28,11 +28,10 @@
 
 namespace KWin {
     class BorderRadius;
-    class BlurEffect;
 }
 
-namespace BBDX
-{
+namespace BBDX {
+class BlurEffect;
 
 class WindowManager : public QObject {
     Q_OBJECT
@@ -45,7 +44,7 @@ public:
 
 private:
     // pointer to the owning BlurEffect instance
-    KWin::BlurEffect *m_effect;
+    BBDX::BlurEffect *m_effect;
 
     // managed windows
     std::unordered_map<const KWin::EffectWindow *, std::unique_ptr<BBDX::Window>> m_windows{};
@@ -85,7 +84,7 @@ public Q_SLOT:
     void slotWindowDeleted(KWin::EffectWindow *w);
 
 public:
-    explicit WindowManager(KWin::BlurEffect *effect);
+    explicit WindowManager(BBDX::BlurEffect *effect);
 
     /**
      * reconfigure from BlurConfig

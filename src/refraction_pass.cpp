@@ -45,7 +45,7 @@ BBDX::RefractionPass::RefractionPass() {
 }
 
 void BBDX::RefractionPass::reconfigure() {
-    auto config = KWin::BlurConfig::self();
+    auto config = BBDX::BlurConfig::self();
 
     if (!config) {
         qCWarning(REFRACTION_PASS) << BBDX::LOG_PREFIX

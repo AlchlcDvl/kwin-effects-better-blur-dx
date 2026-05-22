@@ -15,7 +15,6 @@ namespace KWin {
     class GLVertexBuffer;
     class RenderViewport;
     class WindowPaintData;
-    struct BlurRenderData;
 }
 
 namespace BBDX {
@@ -23,6 +22,7 @@ namespace BBDX {
 }
 
 namespace BBDX {
+struct BlurRenderData;
 
 class RoundedCornersPass {
 private:
@@ -49,7 +49,7 @@ public:
     void apply(const KWin::BorderRadius &cornerRadius,
                const KWin::RenderViewport &viewport,
                const QRect &scaledBackgroundRect,
-               KWin::BlurRenderData &renderInfo,
+               BBDX::BlurRenderData &renderInfo,
                const KWin::EffectWindow *w,
                const KWin::WindowPaintData &data,
                KWin::GLVertexBuffer *vbo,

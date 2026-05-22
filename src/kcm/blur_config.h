@@ -11,8 +11,7 @@
 #include <QWidget>
 #include <KContextualHelpButton>
 
-namespace KWin
-{
+namespace BBDX {
 
 class BlurEffectConfig : public KCModule
 {
@@ -38,4 +37,4 @@ private:
     void slotRefractionModeChanged(int index);
 };
 
-} // namespace KWin
+} // namespace BBDX

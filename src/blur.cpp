@@ -87,8 +87,8 @@ static void ensureResources()
     Q_INIT_RESOURCE(blur);
 }
 
-namespace KWin
-{
+namespace BBDX {
+using namespace KWin;
 
 static const QByteArray s_blurAtomName = QByteArrayLiteral("_KDE_NET_WM_BLUR_BEHIND_REGION");
 
@@ -1374,6 +1374,6 @@ bool BlurEffect::blocksDirectScanout() const
     return false;
 }
 
-} // namespace KWin
+} // namespace BBDX
 
 #include "moc_blur.cpp"

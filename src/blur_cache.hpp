@@ -21,11 +21,11 @@
 #include <vector>
 
 namespace KWin {
-    struct BlurRenderData;
     class GLVertex2D;
 }
 
 namespace BBDX {
+struct BlurRenderData;
 
 /**
  * A single valid entry
@@ -208,13 +208,13 @@ public:
      * Select a cache entry from renderInfo if a valid one exists
      * by comparing the underlying texture
      */
-    void selectCacheEntry(KWin::BlurRenderData &renderInfo, KWin::GLVertexBuffer *vbo);
+    void selectCacheEntry(BBDX::BlurRenderData &renderInfo, KWin::GLVertexBuffer *vbo);
 
     /**
      * Select a cache entry from renderInfo if a valid one exists
      * by checking if a recent one exists
      */
-    void selectCacheEntryEarly(KWin::BlurRenderData &renderInfo);
+    void selectCacheEntryEarly(BBDX::BlurRenderData &renderInfo);
 
     /**
      * Injects the geometry used for the cache, in logical pixels
@@ -237,12 +237,12 @@ public:
     /**
      * Draw the cached texture
      */
-    void drawCached(const KWin::Rect &scaledBackgroundRect, const KWin::RenderViewport &viewport, KWin::BlurRenderData &renderInfo, KWin::GLVertexBuffer *vbo, const int vertexCount, const float modulation) const;
+    void drawCached(const KWin::Rect &scaledBackgroundRect, const KWin::RenderViewport &viewport, BBDX::BlurRenderData &renderInfo, KWin::GLVertexBuffer *vbo, const int vertexCount, const float modulation) const;
 
     /**
      * vbo->draw() wrapper to draw into BlurCacheData of the provided renderInfo
      */
-    void drawToCache(KWin::BlurRenderData &renderInfo, KWin::GLVertexBuffer *vbo) const;
+    void drawToCache(BBDX::BlurRenderData &renderInfo, KWin::GLVertexBuffer *vbo) const;
 };
 
 } // namespace BBDX

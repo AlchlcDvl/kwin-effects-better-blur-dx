@@ -256,7 +256,7 @@ void BBDX::BlurCache::preparePaintData(const KWin::Region *dirtyRegion,
     m_paintData.textureCompareVertexCount = dirtyRegion->rects().size() * 6;
 }
 
-void BBDX::BlurCache::selectCacheEntry(KWin::BlurRenderData &renderInfo,
+void BBDX::BlurCache::selectCacheEntry(BBDX::BlurRenderData &renderInfo,
                                        KWin::GLVertexBuffer *vbo) {
     auto &cache = renderInfo.cache;
     KWin::GLTexture *blitTexture = renderInfo.framebuffers[0].get()->colorAttachment();
@@ -376,7 +376,7 @@ cleanup:
     }
 }
 
-void BBDX::BlurCache::selectCacheEntryEarly(KWin::BlurRenderData &renderInfo) {
+void BBDX::BlurCache::selectCacheEntryEarly(BBDX::BlurRenderData &renderInfo) {
     auto &cache = renderInfo.cache;
 
     cache.reset();
@@ -496,7 +496,7 @@ void BBDX::BlurCache::setupVBO(std::span<KWin::GLVertex2D> &map, size_t &vboInde
     }
 }
 
-void BBDX::BlurCache::drawCached(const KWin::Rect &scaledBackgroundRect, const KWin::RenderViewport &viewport, KWin::BlurRenderData &renderInfo, KWin::GLVertexBuffer *vbo, const int vertexCount, const float modulation) const {
+void BBDX::BlurCache::drawCached(const KWin::Rect &scaledBackgroundRect, const KWin::RenderViewport &viewport, BBDX::BlurRenderData &renderInfo, KWin::GLVertexBuffer *vbo, const int vertexCount, const float modulation) const {
     KWin::ShaderManager::instance()->pushShader(m_texturePass.shader.get());
     
     QMatrix4x4 projectionMatrix = viewport.projectionMatrix();
@@ -530,7 +530,7 @@ void BBDX::BlurCache::drawCached(const KWin::Rect &scaledBackgroundRect, const K
     KWin::ShaderManager::instance()->popShader();
 }
 
-void BBDX::BlurCache::drawToCache(KWin::BlurRenderData &renderInfo, KWin::GLVertexBuffer *vbo) const {
+void BBDX::BlurCache::drawToCache(BBDX::BlurRenderData &renderInfo, KWin::GLVertexBuffer *vbo) const {
     auto cachedFramebuffer = renderInfo.cache.valid()->cachedFramebuffer.get();
     KWin::GLFramebuffer::pushFramebuffer(cachedFramebuffer);
     vbo->draw(GL_TRIANGLES, vboStartCache(), vboCountCache());

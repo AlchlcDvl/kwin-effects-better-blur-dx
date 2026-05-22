@@ -41,13 +41,15 @@
 #include <optional>
 #include <unordered_map>
 
-namespace KWin
-{
-
+namespace KWin {
 #if KWIN_VERSION < KWIN_VERSION_CODE(6, 6, 90)
 class BlurManagerInterface;
 class ContrastManagerInterface;
 #endif
+}
+
+namespace BBDX {
+using namespace KWin;
 
 struct BlurRenderData
 {
@@ -268,4 +270,4 @@ inline bool BlurEffect::provides(Effect::Feature feature)
     return KWin::Effect::provides(feature);
 }
 
-} // namespace KWin
+} // namespace BBDX

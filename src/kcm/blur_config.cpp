@@ -16,8 +16,7 @@
 #include <QFileDialog>
 #include <QPushButton>
 
-namespace KWin
-{
+namespace BBDX {
 
 K_PLUGIN_CLASS(BlurEffectConfig)
 
@@ -160,7 +159,7 @@ void BlurEffectConfig::save()
     interface.reconfigureEffect(QStringLiteral("better_blur_dx"));
 }
 
-} // namespace KWin
+} // namespace BBDX
 
 #include "blur_config.moc"
 
