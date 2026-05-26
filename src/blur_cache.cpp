@@ -165,6 +165,24 @@ void BBDX::BlurCacheLRU::add(std::unique_ptr<BlurCacheEntry> entry) {
     select();
 }
 
+void BBDX::BlurCacheLRU::setDirty() {
+    if (m_dirty) {
+        return;
+    }
+
+    m_dirty = true;
+
+    uint hits{0};
+    if (m_entry) {
+        hits = m_entry->hits;
+    }
+
+    qCDebug(BLUR_CACHE) << BBDX::LOG_PREFIX
+                        << "BlurCache marked dirty:" << m_windowClass << "\n"
+                        << "PID:" << m_windowPID << "\n"
+                        << "Hits:" << hits;
+}
+
 void BBDX::BlurCacheLRU::invalidate(QStringView reason, bool skipGlContext) {
     if (!m_entry) {
         return;

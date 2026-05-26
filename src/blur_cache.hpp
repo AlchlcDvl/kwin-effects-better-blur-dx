@@ -140,7 +140,7 @@ public:
     /**
      * Mark/clear the dirty (needs re-blur) flag
      */
-    void setDirty() { m_dirty = true; }
+    void setDirty();
     void clearDirty() { m_dirty = false; }
 
     /**
