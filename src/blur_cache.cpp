@@ -478,16 +478,9 @@ cleanup:
 
         // QUERY END
 
-        // collect the blit damage for future repaints
+        // collect the blit damage for future repaints and select
         cacheEntry->updateBlitTexture(renderInfo.framebuffers[0].get(), *m_paintData.dirtyRegion);
-
-        // select if cache isn't dirty
-        // else we'll re-blur after which it's no longer dirty
-        if (cache.dirty()) {
-            cache.clearDirty();
-        } else {
-            cache.select();
-        }
+        cache.select();
     }
 }
 
