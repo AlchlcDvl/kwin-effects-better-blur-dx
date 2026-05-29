@@ -57,11 +57,6 @@ struct BlurCacheEntry {
     // backgroundRect used to create this cache entry
     KWin::Rect backgroundRect{};
 
-    // Marker for cache entries that are partial (didn't have full backgroundRect blitted).
-    // Partial entries are fine to use for the regular "slow" path
-    // but they can't be used for some performance hacks.
-    bool partial{false};
-
     /**
      * Create a new BlurCacheEntry by allocating cachedTexture and cachedFramebuffer
      * blitTexture is cloned from the provided blitFramebuffer.

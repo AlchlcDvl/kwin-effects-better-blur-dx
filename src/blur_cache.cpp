@@ -84,15 +84,7 @@ std::unique_ptr<BBDX::BlurCacheEntry> BBDX::BlurCacheEntry::create(const KWin::R
     // copy data from dirtyRegion
     entry->updateBlitTexture(dirtyBlitFramebuffer, dirtyRegion);
 
-    // mark initially partial entries
-    KWin::Region missingPaint{backgroundRect.translated(-backgroundRect.topLeft())};
-    for (const auto &rect : entry->localDirtyRegion(dirtyRegion).rects()) {
-        missingPaint -= rect;
-    }
-    entry->partial = !missingPaint.isEmpty();
-
     qCDebug(BLUR_CACHE) << BBDX::LOG_PREFIX << "New BlurCacheEntry:\n"
-                                            << "Partial:" << entry->partial << "\n"
                                             << "dirtyRegion:" << dirtyRegion;
 
     entry->verifiedAt = std::chrono::steady_clock::now();
@@ -473,12 +465,7 @@ void BBDX::BlurCache::selectCacheEntryEarly(BBDX::BlurRenderData &renderInfo) {
         return;
     }
 
-    if (auto cacheEntry = cache.get()) {
-        // partial entries shouldn't be reused without verification
-        if (cacheEntry->partial) {
-            return;
-        }
-
+    if (cache.get()) {
         cache.select();
     }
 }

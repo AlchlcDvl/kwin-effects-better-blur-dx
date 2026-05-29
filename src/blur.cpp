@@ -1163,9 +1163,13 @@ void BlurEffect::blur(const RenderTarget &renderTarget, const RenderViewport &vi
                 return;
             }
 
-            // partial cache entries are bad,
-            // make sure we get a complete one soon
-            if (cacheEntry->partial) {
+            // partial cache entries are mostly fine,
+            // but we still want a complete one soon
+            KWin::Region missingPaint{backgroundRect.translated(-backgroundRect.topLeft())};
+            for (const auto &rect : cacheEntry->localDirtyRegion(dirtyRegion).rects()) {
+                missingPaint -= rect;
+            }
+            if (!missingPaint.isEmpty()) {
                 w->addRepaintFull();
             }
 
