@@ -16,7 +16,6 @@
 #  include <core/rect.h>
 #endif
 
-#include <chrono>
 #include <memory>
 #include <vector>
 
@@ -50,9 +49,6 @@ struct BlurCacheEntry {
 
     // cache hits of this entry, incremented by BlurCacheLRU::select()
     uint hits{0};
-
-    // last time this cache entry was verified; used for rate limiting
-    std::chrono::time_point<std::chrono::steady_clock> verifiedAt{};
 
     // backgroundRect used to create this cache entry
     KWin::Rect backgroundRect{};
@@ -110,9 +106,8 @@ public:
      * Select does the following:
      *  - acknowledge the current cache entry was a hit (makes valid() return true)
      *  - bump cache hits
-     *  - if verified=true update the verifiedAt timestamp
      */
-    void select(bool verified = false);
+    void select();
 
     /**
      * Reset select/valid state for next selection

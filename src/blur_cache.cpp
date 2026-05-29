@@ -28,7 +28,6 @@
 #include <QVector2D>
 #include <QtNumeric>
 
-#include <chrono>
 #include <memory>
 #include <vector>
 
@@ -87,8 +86,6 @@ std::unique_ptr<BBDX::BlurCacheEntry> BBDX::BlurCacheEntry::create(const KWin::R
     qCDebug(BLUR_CACHE) << BBDX::LOG_PREFIX << "New BlurCacheEntry:\n"
                                             << "dirtyRegion:" << dirtyRegion;
 
-    entry->verifiedAt = std::chrono::steady_clock::now();
-
     return entry;
 }
 
@@ -108,7 +105,7 @@ BBDX::BlurCacheEntry* BBDX::BlurCacheLRU::get() {
     return m_entry.get();
 }
 
-void BBDX::BlurCacheLRU::select(bool verified) {
+void BBDX::BlurCacheLRU::select() {
     if (!m_entry) {
         qCWarning(BLUR_CACHE) << BBDX::LOG_PREFIX
                                << "BlurCacheLRU::select(): Called with no existing BlurCacheEntry";
@@ -117,10 +114,6 @@ void BBDX::BlurCacheLRU::select(bool verified) {
 
     m_valid = true;
     m_entry->hits += 1;
-
-    if (verified) {
-        m_entry->verifiedAt = std::chrono::steady_clock::now();
-    }
 }
 
 void BBDX::BlurCacheLRU::reset() {
@@ -302,7 +295,7 @@ void BBDX::BlurCache::selectCacheEntry(BBDX::BlurRenderData &renderInfo,
         // which would mean there was no dirtyRegion and thus no blitted data.
         // Just accept and bail.
         if (m_paintData.textureCompareRegion.isEmpty()) {
-            cache.select(true);
+            cache.select();
             return;
         }
 
