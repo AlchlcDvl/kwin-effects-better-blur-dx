@@ -43,7 +43,6 @@ BBDX::WindowManager::WindowManager(BBDX::BlurEffect *effect) {
 
     connect(KWin::effects, &KWin::EffectsHandler::windowAdded, this, &WindowManager::slotWindowAdded);
     connect(KWin::effects, &KWin::EffectsHandler::windowDeleted, this, &WindowManager::slotWindowDeleted);
-    connect(KWin::effects, &KWin::EffectsHandler::stackingOrderChanged, this, &WindowManager::slotStackingOrderChanged);
 }
 
 void BBDX::WindowManager::slotWindowAdded(KWin::EffectWindow *w) {
@@ -55,8 +54,6 @@ void BBDX::WindowManager::slotWindowAdded(KWin::EffectWindow *w) {
         m_docks.insert(w);
         refreshMaximizedStateAll();
     }
-
-    refreshWindowCoverageAll();
 
     qCDebug(WINDOW_MANAGER) << BBDX::LOG_PREFIX << "Window added:" << *(m_windows[w]);
 }
@@ -71,12 +68,6 @@ void BBDX::WindowManager::slotWindowDeleted(KWin::EffectWindow *w) {
         m_docks.erase(it);
         refreshMaximizedStateAll();
     }
-
-    refreshWindowCoverageAll();
-}
-
-void BBDX::WindowManager::slotStackingOrderChanged() {
-    refreshWindowCoverageAll();
 }
 
 BBDX::Window* BBDX::WindowManager::findWindow(const KWin::EffectWindow *w) const {
@@ -229,48 +220,6 @@ void BBDX::WindowManager::refreshMaximizedState(BBDX::Window *window) const {
 void BBDX::WindowManager::refreshMaximizedStateAll() const {
     for (const auto &[w, window] : m_windows) {
         refreshMaximizedState(window.get());
-    }
-}
-
-void BBDX::WindowManager::refreshWindowCoverage(BBDX::Window *bbdxWindow) const {
-    const auto w = bbdxWindow->effectwindow();
-
-    KWin::RegionF blurRegion{m_effect->blurRegion(w)};
-#if KWIN_VERSION < KWIN_VERSION_CODE(6, 6, 90)
-    blurRegion.translate(w->pos().toPoint());
-#else
-    blurRegion.translate(w->pos());
-#endif
-
-    for (const auto &[kWindow, bbdxWindow] : m_windows) {
-        // ignore these
-        if (kWindow == w
-            ||kWindow->isDesktop()
-            || !kWindow->isVisible()) {
-            continue;
-        }
-
-        if (kWindow->window()->stackingOrder() <= w->window()->stackingOrder()) {
-            continue;
-        }
-
-#if KWIN_VERSION < KWIN_VERSION_CODE(6, 6, 90)
-        blurRegion -= kWindow->frameGeometry().toRect();
-#else
-        blurRegion -= kWindow->frameGeometry();
-#endif
-
-        if (blurRegion.isEmpty()) {
-            break;
-        }
-    }
-
-    bbdxWindow->setIsBlurFullyCovered(blurRegion.isEmpty());
-}
-
-void BBDX::WindowManager::refreshWindowCoverageAll() const {
-    for (const auto &[w, window] : m_windows) {
-        refreshWindowCoverage(window.get());
     }
 }
 

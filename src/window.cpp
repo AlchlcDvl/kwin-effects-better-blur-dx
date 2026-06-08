@@ -46,11 +46,6 @@ void BBDX::Window::slotMinimizedChanged() {
         && m_isMinimized) {
         m_restoresMaximized = true;
     }
-
-    // minimizing a window does not imply
-    // a stacking order update until another window is activated
-    // but it has the same effect and needs to refresh all windows
-    m_windowManager->refreshWindowCoverageAll();
 }
 
 void BBDX::Window::slotWindowFullScreenChanged() {
@@ -96,14 +91,6 @@ void BBDX::Window::slotWindowFrameGeometryChanged() {
     // but it's very likely the background blit will never match
     // after moving (and resizing would invalidate due to new FBOs anyway)
     invalidateBlurCache(QStringLiteral("frameGeometry changed"));
-
-    // we need to refresh all windows
-    // because a change to this window's geometry
-    // may mean a window underneath gets uncovered
-    //
-    // TODO: technically only refreshing intersecting
-    //       windows is enough
-    m_windowManager->refreshWindowCoverageAll();
 
     // Not sure if this is the best place to unset
     // this but seems to work fine for now
@@ -183,10 +170,6 @@ bool BBDX::Window::shouldBlurWhileTransformed() const {
 
 void BBDX::Window::refreshMaximizedState() {
     m_windowManager->refreshMaximizedState(this);
-}
-
-void BBDX::Window::refreshWindowCoverage() {
-    m_windowManager->refreshWindowCoverage(this);
 }
 
 void BBDX::Window::updateForceBlurRegion() {

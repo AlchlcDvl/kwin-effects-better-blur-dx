@@ -107,7 +107,6 @@ private:
     bool shouldForceBlur() const;
 
     void refreshMaximizedState();
-    void refreshWindowCoverage();
     void updateForceBlurRegion();
     void triggerBlurRegionUpdate() const;
     bool opacityChangedFromOriginal();

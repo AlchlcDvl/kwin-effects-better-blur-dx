@@ -77,7 +77,6 @@ private:
 public Q_SLOT:
     void slotWindowAdded(KWin::EffectWindow *w);
     void slotWindowDeleted(KWin::EffectWindow *w);
-    void slotStackingOrderChanged();
 
 public:
     explicit WindowManager(BBDX::BlurEffect *effect);
@@ -92,12 +91,6 @@ public:
      */
     void refreshMaximizedState(BBDX::Window *w) const;
     void refreshMaximizedStateAll() const;
-
-    /**
-     * Refresh window coverage info of a window / of all windows
-     */
-    void refreshWindowCoverage(BBDX::Window *bbdxWindow) const;
-    void refreshWindowCoverageAll() const;
 
     /**
      * getters
