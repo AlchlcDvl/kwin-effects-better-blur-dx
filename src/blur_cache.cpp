@@ -439,10 +439,10 @@ void BBDX::BlurCache::prepareCache(BBDX::BlurRenderData &renderInfo,
                                                           renderInfo.framebuffers[0].get(),
                                                           m_paintData.dirtyRegion,
                                                           m_paintData.backgroundRect);
-        // TODO: make sure this is safe
-        //       BlurEffect::blur() needs to bail
-        //       if this fails or we get nullptr derefs when trying to
-        //       access blit/target framebuffers
+        // XXX: ensure this is safe
+        // and BlurEffect::blur() bails
+        // if this fails or we get nullptr derefs when trying to
+        // access blit/target framebuffers
         if (!newCacheEntry) {
             qCWarning(KWIN_BLUR) << BBDX::LOG_PREFIX << "Creating BlurCacheEntry failed";
             return;
