@@ -131,6 +131,8 @@ void BBDX::BlurCacheLRU::invalidate(QStringView reason, bool skipGlContext) {
     if (!skipGlContext) {
         KWin::effects->makeOpenGLContextCurrent();
     }
+
+    m_entry.reset();
 }
 
 void BBDX::BlurCacheLRU::setWindow(KWin::EffectWindow* w) {

@@ -1140,6 +1140,7 @@ void BlurEffect::blur(const RenderTarget &renderTarget, const RenderViewport &vi
     // BBDX: prepare cache, bail if there is no cache entry
     m_blurCache->prepareCache(renderInfo.cache, vbo);
     if (!renderInfo.cache.get()) {
+        qCWarning(KWIN_BLUR) << BBDX::LOG_PREFIX << "Bailing due to missing cache entry";
         return;
     }
 
