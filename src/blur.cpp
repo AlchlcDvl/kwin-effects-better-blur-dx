@@ -1138,7 +1138,7 @@ void BlurEffect::blur(const RenderTarget &renderTarget, const RenderViewport &vi
     vbo->bindArrays();
 
     // BBDX: prepare cache, bail if there is no cache entry
-    m_blurCache->prepareCache(renderInfo, vbo);
+    m_blurCache->prepareCache(renderInfo.cache, vbo);
     if (!renderInfo.cache.get()) {
         return;
     }
@@ -1293,7 +1293,7 @@ void BlurEffect::blur(const RenderTarget &renderTarget, const RenderViewport &vi
 #endif
 
         // BBDX:
-        m_blurCache->drawToCache(renderInfo, vbo);
+        m_blurCache->drawToCache(renderInfo.cache, vbo);
 
 #if BETTERBLUR_NOT_NEEDED
         if (modulation < 1.0) {
@@ -1334,7 +1334,7 @@ void BlurEffect::blur(const RenderTarget &renderTarget, const RenderViewport &vi
             noiseTexture->bind();
 
             // BBDX:
-            m_blurCache->drawToCache(renderInfo, vbo);
+            m_blurCache->drawToCache(renderInfo.cache, vbo);
 
             ShaderManager::instance()->popShader();
         }

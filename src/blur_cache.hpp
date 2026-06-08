@@ -251,7 +251,7 @@ public:
      * The regular blur passes should happen between this and
      * BlurCached::rawCached()
      */
-    void prepareCache(BlurRenderData &renderInfo, KWin::GLVertexBuffer *vbo);
+    void prepareCache(BlurCacheLRU &cache, KWin::GLVertexBuffer *vbo);
 
     /**
      * Call glEndConditionalRender and draw the cached texture
@@ -261,9 +261,9 @@ public:
     void drawCached(const KWin::Rect &scaledBackgroundRect, const KWin::RenderViewport &viewport, BBDX::BlurRenderData &renderInfo, KWin::GLVertexBuffer *vbo, const int vertexCount, const float modulation) const;
 
     /**
-     * vbo->draw() wrapper to draw into BlurCacheData of the provided renderInfo
+     * vbo->draw() wrapper to draw into BlurCacheData of the provided cache
      */
-    void drawToCache(BBDX::BlurRenderData &renderInfo, KWin::GLVertexBuffer *vbo) const;
+    void drawToCache(BBDX::BlurCacheLRU &cache, KWin::GLVertexBuffer *vbo) const;
 };
 
 } // namespace BBDX

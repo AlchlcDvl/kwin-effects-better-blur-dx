@@ -298,20 +298,18 @@ void BBDX::BlurCache::setupVBO(std::span<KWin::GLVertex2D> &map, size_t &vboInde
     }
 }
 
-void BBDX::BlurCache::prepareCache(BBDX::BlurRenderData &renderInfo,
+void BBDX::BlurCache::prepareCache(BBDX::BlurCacheLRU &cache,
                                    KWin::GLVertexBuffer *vbo) {
     if (!m_glQueryObject) {
         m_glQueryObject = std::unique_ptr<GLuint, GLQueryObjectDeleter>{new GLuint{}};
         glGenQueries(1, m_glQueryObject.get());
     }
 
-    auto &cache = renderInfo.cache;
-
     // if we don't have an entry create one and bail to fill it
     auto cacheEntry = cache.get();
     if (!cacheEntry) {
         auto newCacheEntry = BBDX::BlurCacheEntry::create(m_paintData.scaledBackgroundRect,
-                                                          renderInfo.framebuffers[0].get(),
+                                                          m_paintData.blitFramebuffer,
                                                           m_paintData.dirtyRegion,
                                                           m_paintData.backgroundRect);
         // XXX: ensure this is safe
@@ -346,7 +344,7 @@ void BBDX::BlurCache::prepareCache(BBDX::BlurRenderData &renderInfo,
 
     // textures + FBOs used in query
     auto cachedTextureFBO = std::pair{cacheEntry->blitTexture, cacheEntry->blitFramebuffer};
-    auto newTextureFBO = std::pair{renderInfo.textures[0], renderInfo.framebuffers[0]};
+    auto newTextureFBO = std::pair{m_paintData.blitFramebuffer->colorAttachment(), m_paintData.blitFramebuffer};
     auto &[cachedTexture, cachedFramebuffer] = cachedTextureFBO;
     auto &[newTexture, newFramebuffer] = newTextureFBO;
 
@@ -471,8 +469,8 @@ void BBDX::BlurCache::drawCached(const KWin::Rect &scaledBackgroundRect, const K
     KWin::ShaderManager::instance()->popShader();
 }
 
-void BBDX::BlurCache::drawToCache(BBDX::BlurRenderData &renderInfo, KWin::GLVertexBuffer *vbo) const {
-    auto cachedFramebuffer = renderInfo.cache.get()->cachedFramebuffer.get();
+void BBDX::BlurCache::drawToCache(BBDX::BlurCacheLRU &cache, KWin::GLVertexBuffer *vbo) const {
+    auto cachedFramebuffer = cache.get()->cachedFramebuffer.get();
     KWin::GLFramebuffer::pushFramebuffer(cachedFramebuffer);
     vbo->draw(GL_TRIANGLES, vboStartCache(), vboCountCache());
     KWin::GLFramebuffer::popFramebuffer();
