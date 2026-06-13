@@ -8,12 +8,12 @@
 #include <opengl/gltexture.h>
 
 #include <QLoggingCategory>
+#include <QtPreprocessorSupport>
 #include <QFile>
 
 #include <epoxy/gl.h>
 
 #include <memory>
-#include <qloggingcategory.h>
 #include <unordered_map>
 
 Q_LOGGING_CATEGORY(BBDX_TEXTURE_COMPARER, "kwin_effect_better_blur_dx.texture_comparer", QtInfoMsg)
@@ -174,6 +174,10 @@ BBDX::TextureComparer::~TextureComparer() {
 }
 
 void BBDX::TextureComparer::compareAndUpdate(KWin::GLTexture *freshBlit, KWin::GLTexture *cachedBlit, const KWin::Region &localDirtyRegionGL, const KWin::EffectWindow *window) {
+#if !defined(BBDX_DEBUG)
+    Q_UNUSED(window);
+#endif
+
     const auto textureFormat = freshBlit->internalFormat();
 
     // lazily create compute shader instances in case we need
