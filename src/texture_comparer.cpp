@@ -88,12 +88,30 @@ std::unique_ptr<BBDX::TextureComparer> BBDX::TextureComparer::create() {
         qCDebug(BBDX_TEXTURE_COMPARER) << "Compute shader linking log:\n" << log;
     }
 
+    // supplementary resources
+    glGenBuffers(1, &textureComparer->m_counterBuffer);
+
+    // allocate a single GLuint (the change counter)
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, textureComparer->m_counterBuffer);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(GLuint), nullptr, GL_DYNAMIC_DRAW);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+    glGenQueries(1, &textureComparer->m_glueQuery);
+
     return textureComparer;
 }
 
 BBDX::TextureComparer::~TextureComparer() {
-    if (m_computeShader) {
+    if (m_computeShader > 0) {
         glDeleteProgram(m_computeShader);
         m_computeShader = 0;
+    }
+
+    if (m_counterBuffer > 0) {
+        glDeleteBuffers(1, &m_counterBuffer);
+    }
+
+    if (m_glueQuery > 0) {
+        glDeleteQueries(1, &m_glueQuery);
     }
 }

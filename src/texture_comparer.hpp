@@ -16,6 +16,12 @@ class TextureComparer {
     // regular vert+frag so let KWin handle it
     std::unique_ptr<KWin::GLShader> m_glueShader{nullptr};
 
+    // shared buffer for the counter
+    GLuint m_counterBuffer{0};
+
+    // the glue query object
+    GLuint m_glueQuery{0};
+
     TextureComparer() = default;
 
 public:
