@@ -1,5 +1,7 @@
 #include "texture_comparer.hpp"
 
+#include "kwin_compat.hpp"
+
 #include <opengl/glshadermanager.h>
 #include <opengl/glshader.h>
 #include <opengl/gltexture.h>
@@ -191,8 +193,8 @@ void BBDX::TextureComparer::compareAndUpdate(KWin::GLTexture *freshBlit, KWin::G
 
     // bind the textures
     // TODO: colorspace might be different
-    glBindImageTexture(0, freshBlit->texture(), 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA8);
-    glBindImageTexture(1, cachedBlit->texture(), 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA8);
+    glBindImageTexture(0, freshBlit->texture(), 0, GL_FALSE, 0, GL_READ_ONLY, textureFormat);
+    glBindImageTexture(1, cachedBlit->texture(), 0, GL_FALSE, 0, GL_READ_WRITE, textureFormat);
 
     // reset and bind counter
     const GLuint zero = 0;
@@ -214,12 +216,26 @@ void BBDX::TextureComparer::compareAndUpdate(KWin::GLTexture *freshBlit, KWin::G
         glDispatchCompute((rect.width() + 15) / 16, (rect.height() + 15) / 16, 1);
     }
 
+    // wait for compute to be done, then fire the query
+    glMemoryBarrier(GL_BUFFER_UPDATE_BARRIER_BIT | GL_COMMAND_BARRIER_BIT);
+
+#if defined(BBDX_DEBUG)
+    // in debug builds log the changed pixels
+    GLuint pixelsChanged{0};
+    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(GLuint), &pixelChangeCount);
+    qCDebug(BBDX_TEXTURE_COMPARER) << "Pixels changed:" << pixelsChanged;
+#endif
+
+    // cleanup
+    // unbind/clear in reverse order
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, 0);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+    glBindImageTexture(0, 0, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA8);
+    glBindImageTexture(1, 0, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA8);
+
     // revert to whatever program was used before
     // (let's hope this doesn't mess up KWin state)
     glUseProgram(prevProgram);
-
-    // wait for compute to be done, then fire the query
-    glMemoryBarrier(GL_BUFFER_UPDATE_BARRIER_BIT | GL_COMMAND_BARRIER_BIT);
 
     KWin::ShaderManager::instance()->pushShader(m_glueShader.get()); 
 

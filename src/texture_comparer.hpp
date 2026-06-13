@@ -1,5 +1,7 @@
 #pragma once
 
+#include "kwin_compat.hpp"
+
 #include <opengl/glshadermanager.h>
 #include <opengl/glshader.h>
 #include <opengl/gltexture.h>
