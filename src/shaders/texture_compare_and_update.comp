@@ -4,10 +4,10 @@
 layout(local_size_x = 16, local_size_y = 16) in;
 
 // blit from renderTarget
-layout(TEXTURE_FORMAT, binding = 0) uniform readonly image2D freshBlit;
+layout(TEXTURE_FORMAT, binding = 0) readonly uniform image2D freshBlit;
 
 // cached blit
-layout(TEXTURE_FORMAT, binding = 1) uniform rgba8 image2D cachedBlit;
+layout(TEXTURE_FORMAT, binding = 1) uniform image2D cachedBlit;
 
 // the total amount of changed blocks
 layout(std430, binding = 2) buffer AtomicCounterBuffer {
