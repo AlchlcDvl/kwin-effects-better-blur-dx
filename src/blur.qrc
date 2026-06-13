@@ -27,5 +27,7 @@
   <file>shaders/texture_compare_and_update.comp</file>
   <file>shaders/texture_compare_and_update.vert</file>
   <file>shaders/texture_compare_and_update.frag</file>
+  <file>shaders/texture_compare_and_update_core.vert</file>
+  <file>shaders/texture_compare_and_update_core.frag</file>
 </qresource>
 </RCC>
