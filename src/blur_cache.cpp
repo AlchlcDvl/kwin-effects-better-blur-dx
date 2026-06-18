@@ -229,6 +229,14 @@ void BBDX::BlurCache::preparePaintData(const KWin::RenderView *view,
     if (auto cacheEntry = cache.get()) {
         cacheEntry->backgroundRect = *backgroundRect;
         cacheEntry->accumulateDirtyRegion(*dirtyRegion);
+
+        // still not sure if dirtyRegion can even end up empty
+        // but if it is a flush would always end up taking the cache anyway
+        // (no changes to compare). this at least skips some compute
+        if (dirtyRegion->isEmpty() && cacheEntry->isFlushing) {
+            cacheEntry->isFlushing = false;
+            qCDebug(BLUR_CACHE) << "Empty dirtyRegion - aborting cache flush";
+        }
     }
 }
 
