@@ -222,6 +222,7 @@ void BBDX::TextureComparer::compareAndUpdate(const std::pair<GLuint, GLuint> &wi
 
     // reset and bind counter
     const GLuint zero = 0;
+    glInvalidateBufferData(counterBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, counterBuffer);
     glClearBufferSubData(GL_SHADER_STORAGE_BUFFER, GL_R32UI, 0, sizeof(GLuint), GL_RED_INTEGER, GL_UNSIGNED_INT, &zero);
     // slot 2 - matching compute shader
