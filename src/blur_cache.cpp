@@ -212,11 +212,14 @@ BBDX::BlurCache::BlurCache(BBDX::BlurEffect *effect) {
         m_texturePass.mvpMatrixLocation = m_texturePass.shader->uniformLocation("modelViewProjectionMatrix");
     }
 
+    /*
+     * TODO: currently disabled due to compatibility issues
     m_textureComparer = TextureComparer::create();
     if (!m_textureComparer) {
         qCWarning(BLUR_CACHE) << BBDX::LOG_PREFIX << "Failed to create TextureComparer";
         return;
     }
+    */
 }
 
 void BBDX::BlurCache::preparePaintData(const KWin::RenderView *view,

@@ -197,7 +197,8 @@ public:
     /**
      * Check if pass is ready i.e. all shaders loaded
      */
-    bool ready() const { return m_texturePass.shader && m_textureComparer; }
+    //bool ready() const { return m_texturePass.shader && m_textureComparer; }
+    bool ready() const { return !!m_texturePass.shader; }
 
     /**
      * Prepare the cache for this paint
