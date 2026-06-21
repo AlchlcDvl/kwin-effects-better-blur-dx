@@ -201,19 +201,22 @@ BlurEffect::BlurEffect()
     m_windowManager = std::make_unique<BBDX::WindowManager>(this);
 
     m_blurCache = BBDX::BlurCache::create(this);
-    if (!m_blurCache)
+    if (!m_blurCache) {
         qCWarning(KWIN_BLUR) << BBDX::LOG_PREFIX << "Failed to create BlurCache";
         return;
+    }
 
     m_refractionPass = BBDX::RefractionPass::create();
-    if (!m_refractionPass)
+    if (!m_refractionPass) {
         qCWarning(KWIN_BLUR) << BBDX::LOG_PREFIX << "Failed to create RefractionPass";
         return;
+    }
 
     m_roundedCornersPass = BBDX::RoundedCornersPass::create();
-    if (!m_roundedCornersPass)
+    if (!m_roundedCornersPass) {
         qCWarning(KWIN_BLUR) << BBDX::LOG_PREFIX << "Failed to create RoundedCornersPass";
         return;
+    }
 
     initBlurStrengthValues();
     reconfigure(ReconfigureAll);
