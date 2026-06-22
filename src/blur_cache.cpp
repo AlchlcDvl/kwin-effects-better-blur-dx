@@ -354,9 +354,17 @@ void BBDX::BlurCache::flushAccumulatedDirtyRegions(KWin::ScreenPrePaintData &dat
                 continue;
             }
 
-            // flush at ~30fps
+            // flush at ~30fps in normal mode
+            std::chrono::milliseconds flushInterval{33};
+
+            // or once a second in wallpaper only mode
+            // (to still pick up wallpaper changes)
+            if (m_effect->blitMode()) {
+                flushInterval = std::chrono::milliseconds{1000};
+            }
+
             auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - cacheEntry->lastFlush());
-            if (elapsed.count() < 33) {
+            if (elapsed < flushInterval) {
                 continue;
             }
 
