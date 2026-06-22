@@ -440,3 +440,14 @@ BBDX::WallpaperData* BBDX::BlurCache::getWallpaper() {
 
     return &wallpaper;
 }
+
+void BBDX::BlurCache::dropWallpaper(KWin::RenderView *view) {
+    auto it = m_wallpapers.find(view);
+    if (it == m_wallpapers.end()) {
+        return;
+    }
+
+    effects->makeOpenGLContextCurrent();
+
+    m_wallpapers.erase(it);
+}

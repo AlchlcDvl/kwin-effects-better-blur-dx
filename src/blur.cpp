@@ -552,6 +552,9 @@ void BlurEffect::slotViewRemoved(KWin::RenderView *view)
             data.render.erase(it);
         }
     }
+
+    // BBDX: cleanup wallpaper
+    m_blurCache->dropWallpaper(view);
 }
 
 void BlurEffect::slotPropertyNotify(EffectWindow *w, long atom)

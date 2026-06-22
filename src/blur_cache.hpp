@@ -236,6 +236,13 @@ public:
      * nullptr on error
      */
     WallpaperData* getWallpaper();
+
+    /**
+     * Drop wallpaper e.g. when the view was removed
+     *
+     * Ensures the OpenGL context is current
+     */
+    void dropWallpaper(KWin::RenderView *view);
 };
 
 } // namespace BBDX
