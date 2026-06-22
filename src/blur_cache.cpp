@@ -50,7 +50,7 @@ static inline void updateBlitFramebuffer(const KWin::RenderTarget &renderTarget,
 }
 
 std::unique_ptr<BBDX::BlurCacheEntry> BBDX::BlurCacheEntry::create(const KWin::Rect &scaledBackgroundRect,
-                                                                   const KWin::GLFramebuffer *dirtyBlitFramebuffer,
+                                                                   GLenum internalFormat,
                                                                    const KWin::EffectWindow *window) {
     std::unique_ptr<BlurCacheEntry> entry{new BlurCacheEntry()};
 
@@ -66,7 +66,7 @@ std::unique_ptr<BBDX::BlurCacheEntry> BBDX::BlurCacheEntry::create(const KWin::R
 
     // allocate new cached texture + framebuffer for the blurred texture
     glClearColor(0, 0, 0, 0);
-    entry->m_cachedTexture = KWin::GLTexture::allocate(dirtyBlitFramebuffer->colorAttachment()->internalFormat(), scaledBackgroundRect.size());
+    entry->m_cachedTexture = KWin::GLTexture::allocate(internalFormat, scaledBackgroundRect.size());
     if (!entry->m_cachedTexture) {
         qCWarning(BLUR_CACHE) << BBDX::LOG_PREFIX << "Failed to allocate an offscreen texture";
         return nullptr;
@@ -173,10 +173,21 @@ void BBDX::BlurCache::preparePaintData(const KWin::RenderTarget *renderTarget,
         .blitFramebuffer = blitFramebuffer,
     };
 
+    // TODO: wire up options for wallpaper stencil mode
+    if (true) {
+        auto wallpaper = getWallpaper();
+        if (!wallpaper) {
+            qCWarning(BLUR_CACHE) << BBDX::LOG_PREFIX << "Failed to get WallpaperData";
+            return;
+        }
+
+        m_paintData.blitFramebuffer = wallpaper->framebuffer.get();
+    }
+
     // create new cache entry if needed
     if (!cache || cache->invalidated()) {
         cache = BBDX::BlurCacheEntry::create(*m_paintData.scaledBackgroundRect,
-                                             m_paintData.blitFramebuffer,
+                                             m_paintData.blitFramebuffer->colorAttachment()->internalFormat(),
                                              m_paintData.window);
         // XXX: ensure this is safe
         // and BlurEffect::blur() bails
@@ -343,7 +354,11 @@ void BBDX::BlurCache::flushAccumulatedDirtyRegions(KWin::ScreenPrePaintData &dat
     }
 }
 
-BBDX::WallpaperData* BBDX::BlurCache::getWallpaper(KWin::RenderView *view, KWin::RenderTarget *renderTarget) {
+BBDX::WallpaperData* BBDX::BlurCache::getWallpaper() {
+    // naughty const_cast
+    KWin::RenderView *view = const_cast<KWin::RenderView *>(m_paintData.view);
+    KWin::RenderTarget *renderTarget = const_cast<KWin::RenderTarget *>(m_paintData.renderTarget);
+
     auto it = m_wallpapers.find(view);
     if (it != m_wallpapers.end()) {
         return &(it->second);

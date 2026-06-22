@@ -90,7 +90,7 @@ public:
      * with the size of scaledBackgroundRect and format of dirtyBlitFramebuffer
      */
     static std::unique_ptr<BlurCacheEntry> create(const KWin::Rect &scaledBackgroundRect,
-                                                  const KWin::GLFramebuffer *dirtyBlitFramebuffer,
+                                                  GLenum internalFormat,
                                                   const KWin::EffectWindow *window);
 
     /**
@@ -230,11 +230,11 @@ public:
     void flushAccumulatedDirtyRegions(KWin::ScreenPrePaintData &data) const;
 
     /**
-     * Get the wallpaper buffer+texture for the given renderView
+     * Get the wallpaper buffer+texture for the current paintData
      *
      * nullptr on error
      */
-    WallpaperData* getWallpaper(KWin::RenderView *view, KWin::RenderTarget *renderTarget);
+    WallpaperData* getWallpaper();
 };
 
 } // namespace BBDX
