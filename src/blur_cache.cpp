@@ -358,7 +358,9 @@ void BBDX::BlurCache::flushAccumulatedDirtyRegions(KWin::ScreenPrePaintData &dat
             std::chrono::milliseconds flushInterval{33};
 
             // or once a second in wallpaper only mode
-            // (to still pick up wallpaper changes)
+            // (to still pick up wallpaper changes
+            // would be prettier to catch some "Wallpaper changed"
+            // and then delay flushes even further)
             if (m_effect->blitMode()) {
                 flushInterval = std::chrono::milliseconds{1000};
             }
