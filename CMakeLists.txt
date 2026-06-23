@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16.0)
 
 project(kwin_better_blur_dx
-    VERSION 2.5.0
+    VERSION 2.5.1
     LANGUAGES CXX
 )
 

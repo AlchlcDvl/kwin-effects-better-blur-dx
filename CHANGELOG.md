@@ -1,6 +1,8 @@
 # DEV
 Things not in any tagged release yet:
 
+# 2.5.1
+
 ### Bug Fixes:
 - Adapt to KWin shader load changes [KWin MR](https://invent.kde.org/plasma/kwin/-/merge_requests/9053)
   On Plasma 6.7+ we now explicitly load the `_core` version of shaders
