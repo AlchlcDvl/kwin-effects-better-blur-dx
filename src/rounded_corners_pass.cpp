@@ -48,8 +48,7 @@ std::unique_ptr<BBDX::RoundedCornersPass> BBDX::RoundedCornersPass::create() {
 }
 
 void BBDX::RoundedCornersPass::apply(const KWin::BorderRadius &cornerRadius,
-                                     const KWin::RenderViewport &viewport,
-                                     const QRect &backgroundRect,
+                                     const KWin::Rect &backgroundRect,
                                      BBDX::BlurRenderData &renderInfo,
                                      const KWin::EffectWindow *w,
                                      const KWin::WindowPaintData &data,
@@ -57,18 +56,15 @@ void BBDX::RoundedCornersPass::apply(const KWin::BorderRadius &cornerRadius,
                                      const BBDX::BlurCache *blurCache) const {
         KWin::ShaderManager::instance()->pushShader(m_shader.get());
 
+        /**
+         * For caching purposes we keep things in logical coordinates
+         */
+
         QMatrix4x4 projectionMatrix;
         projectionMatrix.ortho(QRectF(0.0, 0.0, backgroundRect.width(), backgroundRect.height()));
 
         // we want to mask the corners of what is already cached
         const auto &read = renderInfo.cache.get()->cachedFramebuffer();
-
-        /**
-         * For caching purposes we keep things in logical coordinates
-         *
-         * TODO: merge rounded corners into BlurCache::drawCached() where we
-         *       actually draw on screen
-         */
 
         const KWin::RectF transformedRect = KWin::RectF{
             w->frameGeometry().x() + data.xTranslation() / data.xScale(),
