@@ -1,6 +1,8 @@
 # DEV
 Things not in any tagged release yet:
 
+# 2.5.0
+
 ### Features
 - **Plasma 6.7 support**
 - **BlurCache rework**
