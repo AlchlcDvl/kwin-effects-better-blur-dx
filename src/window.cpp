@@ -300,8 +300,8 @@ bool BBDX::Window::neverForceBlur() const {
     if (effectwindow()->isDesktop())
         return true;
 
-    if (!m_blurMenus && isMenu())
-        return true;
+    if (isMenu())
+        return !m_blurMenus;
 
     if (!m_blurDocks && effectwindow()->isDock())
         return true;
@@ -523,7 +523,7 @@ qreal BBDX::Window::getEffectiveBlurOpacity(KWin::WindowPaintData &data) {
         // animation takes 250ms max for now
         const qreal progress = elapsed / 250.0;
 
-        // we need to queue a full repaint here to 
+        // we need to queue a full repaint here to
         // avoid flickering due to blur-region-clipping
         effectwindow()->addRepaintFull();
 

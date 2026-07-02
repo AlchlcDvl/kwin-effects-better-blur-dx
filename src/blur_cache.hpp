@@ -141,6 +141,15 @@ struct BlurCachePaintData {
     const KWin::Rect *backgroundRect;
     const KWin::Rect *scaledBackgroundRect;
     KWin::GLFramebuffer *blitFramebuffer;
+
+    // on first paint before we have a usuable cache entry
+    // we won't call glBeginConditionalRender
+    bool glBeginConditionalRenderCalled{false};
+
+    // nothing inside backgroundRect is repainted this paint
+    // but we have a valid cache entry - there is no fresh data
+    // to compare against or blur so just draw the cached texture
+    bool useCachedOnly{false};
 };
 
 class BlurCache {
@@ -183,6 +192,19 @@ public:
                           const KWin::Rect *backgroundRect,
                           const KWin::Rect *scaledBackgroundRect,
                           std::unique_ptr<BlurCacheEntry> &cache);
+
+    /**
+     * Whether this paint should skip the blit and blur passes
+     * and only draw the existing cached texture.
+     *
+     * True when the dirtyRegion doesn't intersect backgroundRect
+     * while a valid cache entry exists. Without fresh pixels there
+     * is nothing to compare against or blur - rebuilding anyway would
+     * recreate the cache from stale data.
+     *
+     * Only valid after preparePaintData() was called.
+     */
+    bool useCachedOnly() const { return m_paintData.useCachedOnly; }
 
     /**
      * Injects the geometry used for the cache, in logical pixels

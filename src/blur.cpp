@@ -359,10 +359,19 @@ void BlurEffect::reconfigure(ReconfigureFlags flags)
     m_refractionPass->reconfigure();
     m_windowManager->reconfigure();
     m_forceContrastParams = BlurConfig::forceContrastParams();
+    m_enableCacheRateLimit = BlurConfig::enableCacheRateLimit();
 
     int blurStrength = BlurConfig::blurStrength() - 1;
     m_iterationCount = blurStrengthValues[blurStrength].iteration;
     m_offset = blurStrengthValues[blurStrength].offset;
+
+    // BBDX: Override iterations for performance if the user configured it
+    int customIterations = BlurConfig::downsampleIterations();
+    if (customIterations > 0) {
+        // Clamp the value safely between 1 and the max defined offsets to prevent crashes
+        m_iterationCount = std::clamp(customIterations, 1, static_cast<int>(blurOffsets.size()));
+    }
+
     m_expandSize = blurOffsets[m_iterationCount - 1].expandSize;
     m_noiseStrength = BlurConfig::noiseStrength();
     m_colorMatrix = colorTransformMatrix(BlurConfig::saturation() / 100.0,
@@ -1045,10 +1054,17 @@ void BlurEffect::blur(const RenderTarget &renderTarget, const RenderViewport &vi
                                   &scaledBackgroundRect,
                                   renderInfo.cache);
 
-    if (!renderInfo.cache.get()) {
-        qCWarning(KWIN_BLUR) << BBDX::LOG_PREFIX << "Bailing due to missing cache entry";
+    // BBDX: If the dirtyRegion doesn't intersect backgroundRect nothing behind the
+    //       window was repainted this frame - the renderTarget only holds stale data
+    //       there. Without a cache entry to fall back on there is nothing valid to
+    //       draw or build a cache entry from, so bail. The on-screen draw would be
+    //       clipped to the deviceRegion anyway.
+    if (dirtyRegion.isEmpty() && !renderInfo.cache.get()) {
         return;
     }
+
+    if (!m_blurCache->useCachedOnly()) {
+    } // indent intentional for KWin diff
 #endif
 
     // Upload the geometry: the first 6 vertices are used when downsampling and upsampling offscreen,
@@ -1165,6 +1181,16 @@ void BlurEffect::blur(const RenderTarget &renderTarget, const RenderViewport &vi
         return;
     }
 
+#if KWIN_VERSION < KWIN_VERSION_CODE(6, 6, 90)
+    const QMatrix4x4 &colorMatrix = blurInfo.colorMatrix ? *blurInfo.colorMatrix : m_colorMatrix;
+#else
+    const QMatrix4x4 &colorMatrix = m_colorMatrix;
+#endif
+    const float modulation = opacity * opacity;
+
+    // BBDX: without fresh data there is nothing to rebuild the cache from -
+    //       skip all blur passes and only draw the cached texture below
+    if (!m_blurCache->useCachedOnly()) {
     // The downsample pass of the dual Kawase algorithm: the background will be scaled down 50% every iteration.
     {
         ShaderManager::instance()->pushShader(m_downsamplePass.shader.get());
@@ -1189,7 +1215,7 @@ void BlurEffect::blur(const RenderTarget &renderTarget, const RenderViewport &vi
             read->colorAttachment()->bind();
 
             GLFramebuffer::pushFramebuffer(draw.get());
-            BBDX::setGLScissor(dirtyRegion, backgroundRect);
+            BBDX::setGLScissor(dirtyRegion, backgroundRect, m_expandSize);
             vbo->draw(GL_TRIANGLES, 0, 6);
         }
 
@@ -1217,19 +1243,12 @@ void BlurEffect::blur(const RenderTarget &renderTarget, const RenderViewport &vi
             BBDX::setTextureSwizzle(read->colorAttachment());
             read->colorAttachment()->bind();
 
-            BBDX::setGLScissor(dirtyRegion, backgroundRect);
+            BBDX::setGLScissor(dirtyRegion, backgroundRect, m_expandSize);
             vbo->draw(GL_TRIANGLES, 0, 6);
         }
 
         ShaderManager::instance()->popShader();
     }
-
-#if KWIN_VERSION < KWIN_VERSION_CODE(6, 6, 90)
-    const QMatrix4x4 &colorMatrix = blurInfo.colorMatrix ? *blurInfo.colorMatrix : m_colorMatrix;
-#else
-    const QMatrix4x4 &colorMatrix = m_colorMatrix;
-#endif
-    const float modulation = opacity * opacity;
 
 #if BBDX_NOT_NEEDED
     if (const BorderRadius cornerRadius = w->window()->borderRadius(); !cornerRadius.isNull()) {
@@ -1365,6 +1384,7 @@ void BlurEffect::blur(const RenderTarget &renderTarget, const RenderViewport &vi
     if (const BorderRadius cornerRadius = m_windowManager->getEffectiveBorderRadius(w); !cornerRadius.isNull()) {
         m_roundedCornersPass->apply(cornerRadius, viewport, scaledBackgroundRect, renderInfo, w, data, vbo, m_blurCache.get());
     }
+    } // indent intentional for KWin diff
 
     // BBDX:
     BBDX::clearGLScissor();

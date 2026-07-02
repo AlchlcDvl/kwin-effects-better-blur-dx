@@ -191,6 +191,11 @@ void BBDX::BlurCache::preparePaintData(const KWin::RenderTarget *renderTarget,
         cache->flush();
     }
 
+    // BBDX: nothing inside backgroundRect was repainted this frame but we have a
+    //       cache entry - there are no fresh pixels to compare against or blur,
+    //       so BlurEffect::blur() only draws the cached texture (useCachedOnly()).
+    m_paintData.useCachedOnly = cache.get() && dirtyRegion->isEmpty();
+
     // the cache entry needs to stay in sync
     cache->setBackgroundRect(*backgroundRect);
     cache->accumulateDirtyRegion(*dirtyRegion);
@@ -264,7 +269,7 @@ void BBDX::BlurCache::drawCached(const KWin::RenderViewport &viewport, BBDX::Blu
     const auto &scaledBackgroundRect = *m_paintData.scaledBackgroundRect;
 
     KWin::ShaderManager::instance()->pushShader(m_texturePass.shader.get());
-    
+
     QMatrix4x4 projectionMatrix = viewport.projectionMatrix();
     projectionMatrix.translate(scaledBackgroundRect.x(), scaledBackgroundRect.y());
 
@@ -325,9 +330,11 @@ void BBDX::BlurCache::flushAccumulatedDirtyRegions(KWin::ScreenPrePaintData &dat
             }
 
             // flush at ~30fps
-            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - cacheEntry->lastFlush());
-            if (elapsed.count() < 33) {
-                continue;
+            if (m_effect->enableCacheRateLimit()) {
+                auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - cacheEntry->lastFlush());
+                if (elapsed.count() < 33) {
+                    continue;
+                }
             }
 
             for (const auto &rect : cacheEntry->accumulatedDirtyRegion().rects()) {
