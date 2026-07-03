@@ -387,3 +387,9 @@ void BBDX::WindowManager::flushWindowCachesFor(BBDX::Window *window, std::chrono
         }
     }
 }
+
+void BBDX::WindowManager::flushAllWindowCaches() const {
+    for (const auto &[kWindow, bbdxWindow] : m_windows) {
+        flushWindowCaches(bbdxWindow.get());
+    }
+}

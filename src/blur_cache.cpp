@@ -195,6 +195,9 @@ void BBDX::BlurCache::slotWallpaperChanged(uint screenNum) {
     // all (wallpaper changes should be infrequent enough for
     // this to not really matter either way)
     m_wallpapers.clear();
+
+    // now flush and implicitly fetch new wallpaper
+    m_effect->windowManager()->flushAllWindowCaches();
 }
 
 std::unique_ptr<BBDX::BlurCache> BBDX::BlurCache::create(BBDX::BlurEffect *effect) {

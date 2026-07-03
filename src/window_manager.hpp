@@ -169,6 +169,11 @@ public:
      */
     void flushWindowCaches(BBDX::Window *window) const;
     void flushWindowCachesFor(BBDX::Window *window, std::chrono::milliseconds duration) const;
+
+    /**
+     * Flush all caches of all windows
+     */
+    void flushAllWindowCaches() const;
 };
 
 } // namespace KWin
