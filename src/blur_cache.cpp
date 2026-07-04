@@ -3,6 +3,7 @@
 #include "kwin_compat.hpp"
 
 #include "blur.h"
+#include "settings.hpp"
 #include "utils.h"
 
 #include <epoxy/gl.h>
@@ -34,13 +35,13 @@ Q_LOGGING_CATEGORY(BLUR_CACHE, "kwin_effect_better_blur_dx.blur_cache", QtInfoMs
 
 /**
  * Update the cached blit texture in blitFramebuffer
- * with contents of the given dirtyRegion
+ * with contents of the given dirtyRegion from RenderTarget
  */
-static inline void updateBlitFramebuffer(const KWin::RenderTarget &renderTarget,
-                                         const KWin::RenderViewport &viewport,
-                                         KWin::GLFramebuffer *blitFramebuffer,
-                                         const KWin::Region &dirtyRegion,
-                                         const KWin::Rect &backgroundRect) {
+static inline void updateBlitFramebufferFromRenderTarget(const KWin::RenderTarget &renderTarget,
+                                                         const KWin::RenderViewport &viewport,
+                                                         KWin::GLFramebuffer *blitFramebuffer,
+                                                         const KWin::Region &dirtyRegion,
+                                                         const KWin::Rect &backgroundRect) {
     for (const auto &rect : dirtyRegion.rects()) {
         blitFramebuffer->blitFromRenderTarget(renderTarget,
                                               viewport,
@@ -49,8 +50,24 @@ static inline void updateBlitFramebuffer(const KWin::RenderTarget &renderTarget,
     }
 }
 
-std::unique_ptr<BBDX::BlurCacheEntry> BBDX::BlurCacheEntry::create(const KWin::Rect &scaledBackgroundRect,
-                                                                   const KWin::GLFramebuffer *dirtyBlitFramebuffer,
+/**
+ * Update the cached blit texture in blitFramebuffer
+ * with contents of the given dirtyRegion from wallpaper
+ */
+static inline void updateBlitFramebufferFromWallpaper(BBDX::WallpaperData *wallpaper,
+                                                      KWin::GLFramebuffer *blitFramebuffer,
+                                                      const KWin::Region &dirtyRegion,
+                                                      const KWin::Rect &backgroundRect) {
+    KWin::GLFramebuffer::pushFramebuffer(wallpaper->framebuffer.get());
+    for (const auto &rect : dirtyRegion.rects()) {
+        blitFramebuffer->blitFromFramebuffer(rect.translated(-wallpaper->geometry.topLeft().toPoint()),
+                                             rect.translated(-backgroundRect.topLeft()));
+    }
+    KWin::GLFramebuffer::popFramebuffer();
+}
+
+std::unique_ptr<BBDX::BlurCacheEntry> BBDX::BlurCacheEntry::create(const KWin::Rect &backgroundRect,
+                                                                   GLenum internalFormat,
                                                                    const KWin::EffectWindow *window) {
     std::unique_ptr<BlurCacheEntry> entry{new BlurCacheEntry()};
 
@@ -62,11 +79,11 @@ std::unique_ptr<BBDX::BlurCacheEntry> BBDX::BlurCacheEntry::create(const KWin::R
     qCDebug(BLUR_CACHE) << BBDX::LOG_PREFIX
                         << "Creating BlurCacheEntry:" << entry->m_windowClass << "\n"
                         << "PID:" << entry->m_windowPID << "\n"
-                        << "Size:" << scaledBackgroundRect;
+                        << "Size:" << backgroundRect;
 
     // allocate new cached texture + framebuffer for the blurred texture
     glClearColor(0, 0, 0, 0);
-    entry->m_cachedTexture = KWin::GLTexture::allocate(dirtyBlitFramebuffer->colorAttachment()->internalFormat(), scaledBackgroundRect.size());
+    entry->m_cachedTexture = KWin::GLTexture::allocate(internalFormat, backgroundRect.size());
     if (!entry->m_cachedTexture) {
         qCWarning(BLUR_CACHE) << BBDX::LOG_PREFIX << "Failed to allocate an offscreen texture";
         return nullptr;
@@ -148,6 +165,7 @@ std::unique_ptr<BBDX::BlurCache> BBDX::BlurCache::create(BBDX::BlurEffect *effec
         return nullptr;
     } else {
         blurCache->m_texturePass.mvpMatrixLocation = blurCache->m_texturePass.shader->uniformLocation("modelViewProjectionMatrix");
+        blurCache->m_texturePass.modulationLocation = blurCache->m_texturePass.shader->uniformLocation("modulation");
     }
 
     return blurCache;
@@ -175,8 +193,8 @@ void BBDX::BlurCache::preparePaintData(const KWin::RenderTarget *renderTarget,
 
     // create new cache entry if needed
     if (!cache || cache->invalidated()) {
-        cache = BBDX::BlurCacheEntry::create(*m_paintData.scaledBackgroundRect,
-                                             m_paintData.blitFramebuffer,
+        cache = BBDX::BlurCacheEntry::create(*m_paintData.backgroundRect,
+                                             m_paintData.blitFramebuffer->colorAttachment()->internalFormat(),
                                              m_paintData.window);
         // XXX: ensure this is safe
         // and BlurEffect::blur() bails
@@ -203,65 +221,30 @@ void BBDX::BlurCache::preparePaintData(const KWin::RenderTarget *renderTarget,
     // still not sure if dirtyRegion can even end up empty
     // but if it is a flush would always end up taking the cache anyway
     // (no changes to compare). this at least skips some compute
-    if (dirtyRegion->isEmpty() && cache->isFlushing()) {
+    if (dirtyRegion->isEmpty()) {
         cache->abortFlush("Empty dirtyRegion");
     }
 
     // when flushing we need the updated blit
     if (cache->isFlushing()) {
-        updateBlitFramebuffer(*m_paintData.renderTarget,
-                              *m_paintData.viewport,
-                              m_paintData.blitFramebuffer,
-                              *m_paintData.dirtyRegion,
-                              *m_paintData.backgroundRect);
-    }
-}
+        if (m_effect->blitMode() == BlitMode::WALLPAPER) {
+            auto wallpaper = getWallpaper();
+            if (!wallpaper) {
+                qCWarning(BLUR_CACHE) << BBDX::LOG_PREFIX << "Failed to get WallpaperData";
+                return;
+            }
 
-void BBDX::BlurCache::setupVBO(std::span<KWin::GLVertex2D> &map, size_t &vboIndex) const {
-    const auto scaledBackgroundRect = m_paintData.scaledBackgroundRect;
-
-    // The geometry used for the cache, in logical pixels
-    // but scaled to what would be drawn on the device.
-    {
-        const QRectF localRect = QRectF(0, 0, scaledBackgroundRect->width(), scaledBackgroundRect->height());
-
-        const float x0 = localRect.left();
-        const float y0 = localRect.top();
-        const float x1 = localRect.right();
-        const float y1 = localRect.bottom();
-
-        const float u0 = x0 / scaledBackgroundRect->width();
-        const float v0 = 1.0f - y0 / scaledBackgroundRect->height();
-        const float u1 = x1 / scaledBackgroundRect->width();
-        const float v1 = 1.0f - y1 / scaledBackgroundRect->height();
-
-        // first triangle
-        map[vboIndex++] = KWin::GLVertex2D{
-            .position = QVector2D(x0, y0),
-            .texcoord = QVector2D(u0, v0),
-        };
-        map[vboIndex++] = KWin::GLVertex2D{
-            .position = QVector2D(x1, y1),
-            .texcoord = QVector2D(u1, v1),
-        };
-        map[vboIndex++] = KWin::GLVertex2D{
-            .position = QVector2D(x0, y1),
-            .texcoord = QVector2D(u0, v1),
-        };
-
-        // second triangle
-        map[vboIndex++] = KWin::GLVertex2D{
-            .position = QVector2D(x0, y0),
-            .texcoord = QVector2D(u0, v0),
-        };
-        map[vboIndex++] = KWin::GLVertex2D{
-            .position = QVector2D(x1, y0),
-            .texcoord = QVector2D(u1, v0),
-        };
-        map[vboIndex++] = KWin::GLVertex2D{
-            .position = QVector2D(x1, y1),
-            .texcoord = QVector2D(u1, v1),
-        };
+            updateBlitFramebufferFromWallpaper(wallpaper,
+                                               m_paintData.blitFramebuffer,
+                                               *m_paintData.dirtyRegion,
+                                               *m_paintData.backgroundRect);
+        } else {
+            updateBlitFramebufferFromRenderTarget(*m_paintData.renderTarget,
+                                                  *m_paintData.viewport,
+                                                  m_paintData.blitFramebuffer,
+                                                  *m_paintData.dirtyRegion,
+                                                  *m_paintData.backgroundRect);
+        }
     }
 }
 
@@ -285,19 +268,15 @@ void BBDX::BlurCache::drawCached(const KWin::RenderViewport &viewport, BBDX::Blu
     }
 
     m_texturePass.shader->setUniform(m_texturePass.mvpMatrixLocation, projectionMatrix);
+    m_texturePass.shader->setUniform(m_texturePass.modulationLocation, modulation);
     read->bind();
 
-    if (modulation < 1.0) {
-        glEnable(GL_BLEND);
-        glBlendColor(0, 0, 0, modulation);
-        glBlendFunc(GL_CONSTANT_ALPHA, GL_ONE_MINUS_CONSTANT_ALPHA);
-    }
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
     vbo->draw(GL_TRIANGLES, vboStartScreen(), vertexCount);
 
-    if (modulation < 1.0) {
-        glDisable(GL_BLEND);
-    }
+    glDisable(GL_BLEND);
 
     KWin::ShaderManager::instance()->popShader();
 }
@@ -314,7 +293,7 @@ void BBDX::BlurCache::drawToCache(BBDX::BlurCacheEntry *cache, KWin::GLVertexBuf
 void BBDX::BlurCache::flushAccumulatedDirtyRegions(KWin::ScreenPrePaintData &data) const {
     for (auto &[window, effectData] : m_effect->m_windows) {
         for (auto &[view, renderData] : effectData.render) {
-#if defined(BETTERBLUR_X11)
+#if defined(BBDX_X11)
             if (view != data.screen) {
                 continue;
             }
@@ -329,23 +308,123 @@ void BBDX::BlurCache::flushAccumulatedDirtyRegions(KWin::ScreenPrePaintData &dat
                 continue;
             }
 
-            // flush at ~30fps
-            if (m_effect->enableCacheRateLimit()) {
-                auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - cacheEntry->lastFlush());
-                if (elapsed.count() < 33) {
-                    continue;
+            // automatic periodic flush
+            // external flushes are picked up either way
+            switch (m_effect->blitMode()) {
+                case BlitMode::WALLPAPER:
+                    // never flush automatically in wallpaper mode
+                    //
+                    // TODO: we should still flush on some events
+                    // like wallpaper changing
+                    //
+                    // PlasmaShell exposes org.kde.PlasmaShell.wallpaperChanged(uint screenNum)
+                    // via DBUS which might work as a trigger
+                    break;
+
+                default:
+                    // flush at ~30fps in normal mode
+                    std::chrono::milliseconds flushInterval{33};
+                    if (m_effect->enableCacheRateLimit()) {
+                        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - cacheEntry->lastFlush());
+                        if (elapsed.count() < flushInterval) {
+                            cacheEntry->flush();
+                        }
+                    }
+            }
+
+            if (cacheEntry->isFlushing()) {
+                for (const auto &rect : cacheEntry->accumulatedDirtyRegion().rects()) {
+                    data.paint |= rect;
                 }
             }
-
-            for (const auto &rect : cacheEntry->accumulatedDirtyRegion().rects()) {
-                data.paint |= rect;
-            }
-
-            // we'll always flush here
-            // it should essentially be a no-op if there was no
-            // accumulatedDirtyRegion but ensures prepareCache()
-            // still checks new dirtyRegion ASAP when the timer elapsed
-            cacheEntry->flush();
         }
     }
+}
+
+BBDX::WallpaperData* BBDX::BlurCache::getWallpaper() {
+#if defined(BBDX_X11)
+    /**
+     * Wayland only feature - mainly because of this function
+     *
+     * Considering X11 is dead in the next (6.8) Plasma release
+     * I won't bother implementing it there.
+     */
+    return nullptr;
+#else
+    // naughty const_cast
+    KWin::RenderView *view = const_cast<KWin::RenderView *>(m_paintData.view);
+    KWin::RenderTarget *renderTarget = const_cast<KWin::RenderTarget *>(m_paintData.renderTarget);
+
+    // for now only cache for the purpose of reusing
+    // framebuffer + texture if they still fit
+    //
+    // TODO: when the DBUS from plasmashell is set up
+    //       this can be cached and dropped on change only
+    WallpaperData &wallpaper = m_wallpapers[view];
+
+    KWin::EffectWindow *desktop{nullptr};
+    for (const auto &window : effects->stackingOrder()) {
+        if (window->isDesktop() && window->screen() == view->logicalOutput()) {
+            desktop = window;
+            break;
+        }
+    }
+
+    if (!desktop) {
+        qCWarning(BLUR_CACHE) << BBDX::LOG_PREFIX << "Could not find a desktop on RenderView";
+        return nullptr;
+    }
+
+    wallpaper.geometry = view->logicalOutput()->geometryF();
+
+    GLenum textureFormat = GL_RGBA8;
+    if (renderTarget->texture()) {
+        textureFormat = renderTarget->texture()->internalFormat();
+    }
+
+    const QSize textureSize{(view->logicalOutput()->geometryF().size()).toSize()};
+
+    // realloc framebuffer+texture when needed
+    if (!wallpaper.texture || wallpaper.texture->internalFormat() != textureFormat || wallpaper.texture->size() != textureSize) {
+        qCDebug(BLUR_CACHE) << BBDX::LOG_PREFIX << "(Re-)Allocating wallpaper buffer";
+
+        wallpaper.texture = KWin::GLTexture::allocate(textureFormat, textureSize);
+        if (!wallpaper.texture) {
+            qCWarning(BLUR_CACHE) << BBDX::LOG_PREFIX << "GLTexture allocation failed";
+            return nullptr;
+        }
+
+        wallpaper.texture->setFilter(GL_LINEAR);
+        wallpaper.texture->setWrapMode(GL_CLAMP_TO_EDGE);
+
+        wallpaper.framebuffer = std::make_unique<GLFramebuffer>(wallpaper.texture.get());
+        if (!wallpaper.framebuffer->valid()) {
+            qCWarning(BLUR_CACHE) << BBDX::LOG_PREFIX << "GLFramebuffer allocation failed";
+            return nullptr;
+        }
+    }
+
+    const RenderTarget wallpaperRenderTarget{wallpaper.framebuffer.get(), renderTarget->colorDescription()};
+    const RenderViewport wallpaperRenderViewport{wallpaper.geometry, 1.0, wallpaperRenderTarget, QPoint{}};
+    WindowPaintData data{};
+
+    GLFramebuffer::pushFramebuffer(wallpaper.framebuffer.get());
+    effects->drawWindow(wallpaperRenderTarget, wallpaperRenderViewport, desktop, KWin::Scene::PAINT_WINDOW_TRANSFORMED, KWin::Region::infinite(), data);
+    GLFramebuffer::popFramebuffer();
+
+    return &wallpaper;
+#endif
+}
+
+void BBDX::BlurCache::dropWallpaper(KWin::RenderView *view) {
+    auto it = m_wallpapers.find(view);
+    if (it == m_wallpapers.end()) {
+        return;
+    }
+
+    qCDebug(BLUR_CACHE) << BBDX::LOG_PREFIX << "Dropping wallpaper buffer";
+
+    effects->makeOpenGLContextCurrent();
+
+    m_wallpapers.erase(it);
 }

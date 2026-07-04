@@ -3,6 +3,7 @@
 #include "kwin_compat.hpp"
 
 #include <chrono>
+#include <core/renderviewport.h>
 #include <effect/effect.h>
 #include <epoxy/gl.h>
 
@@ -12,6 +13,7 @@
 #include <opengl/gltexture.h>
 #include <opengl/glvertexbuffer.h>
 #include <scene/scene.h>
+#include <unordered_map>
 
 #if KWIN_VERSION >= KWIN_VERSION_CODE(6, 5, 80)
 #  include <core/rect.h>
@@ -34,7 +36,7 @@ struct BlurRenderData;
  */
 class BlurCacheEntry {
     // texture and framebuffer for the cache
-    // with the size of scaledBackgroundRect from BlurEffect::blur()
+    // with the size of backgroundRect from BlurEffect::blur()
     std::unique_ptr<KWin::GLTexture> m_cachedTexture{nullptr};
     std::unique_ptr<KWin::GLFramebuffer> m_cachedFramebuffer{nullptr};
 
@@ -85,10 +87,13 @@ class BlurCacheEntry {
 public:
     /**
      * Create a new BlurCacheEntry by allocating cachedTexture and cachedFramebuffer
-     * with the size of scaledBackgroundRect and format of dirtyBlitFramebuffer
+     * with the size of backgroundRect and format of dirtyBlitFramebuffer
+     *
+     * The limiting factor in terms of quality definitely is the blit itself anyways
+     * (logical un-scaled pixels) so un-scaled backgroundRect should be sufficient
      */
-    static std::unique_ptr<BlurCacheEntry> create(const KWin::Rect &scaledBackgroundRect,
-                                                  const KWin::GLFramebuffer *dirtyBlitFramebuffer,
+    static std::unique_ptr<BlurCacheEntry> create(const KWin::Rect &backgroundRect,
+                                                  GLenum internalFormat,
                                                   const KWin::EffectWindow *window);
 
     /**
@@ -152,11 +157,18 @@ struct BlurCachePaintData {
     bool useCachedOnly{false};
 };
 
+struct WallpaperData {
+    KWin::RectF geometry;
+    std::unique_ptr<KWin::GLFramebuffer> framebuffer;
+    std::unique_ptr<KWin::GLTexture> texture;
+};
+
 class BlurCache {
 private:
     struct {
         std::unique_ptr<KWin::GLShader> shader;
         int mvpMatrixLocation;
+        int modulationLocation;
     } m_texturePass;
 
     // pointer to the managing effect
@@ -165,6 +177,11 @@ private:
     // Data used for this specific window paint
     // !!! preparePaintData() must be called before accessing any of this !!!
     BlurCachePaintData m_paintData{};
+
+    /**
+     * Wallpaper buffers for wallpaper mode
+     */
+    std::unordered_map<KWin::RenderView *, WallpaperData> m_wallpapers{};
 
     /**
      * use create()
@@ -218,7 +235,7 @@ public:
     /**
      * Start indices and vert count of stuff in the VBO
      */
-    uint vboStartCache() const { return 6; }
+    uint vboStartCache() const { return 0; }
     uint vboCountCache() const { return 6; }
     uint vboStartScreen() const { return vboStartCache() + vboCountCache(); }
 
@@ -238,6 +255,20 @@ public:
      * Flush all window's accumulatedDirtyRegions
      */
     void flushAccumulatedDirtyRegions(KWin::ScreenPrePaintData &data) const;
+
+    /**
+     * Get the wallpaper buffer+texture for the current paintData
+     *
+     * nullptr on error
+     */
+    WallpaperData* getWallpaper();
+
+    /**
+     * Drop wallpaper e.g. when the view was removed
+     *
+     * Ensures the OpenGL context is current
+     */
+    void dropWallpaper(KWin::RenderView *view);
 };
 
 } // namespace BBDX

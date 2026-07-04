@@ -14,6 +14,7 @@
 #include "refraction_pass.hpp"
 #include "rounded_corners_pass.hpp"
 #include "window_manager.hpp"
+#include "settings.hpp"
 
 #include <memory>
 #include <opengl/glframebuffer.h>
@@ -225,12 +226,12 @@ private:
     QList<BlurValuesStruct> blurStrengthValues;
 
     QMap<EffectWindow *, QMetaObject::Connection> windowBlurChangedConnections;
-#if !defined(BETTERBLUR_X11) && KWIN_VERSION < KWIN_VERSION_CODE(6, 6, 90)
+#if !defined(BBDX_X11) && KWIN_VERSION < KWIN_VERSION_CODE(6, 6, 90)
     QMap<EffectWindow *, QMetaObject::Connection> windowContrastChangedConnections;
 #endif
     std::unordered_map<EffectWindow *, BlurEffectData> m_windows;
 
-#if !defined(BETTERBLUR_X11) && KWIN_VERSION < KWIN_VERSION_CODE(6, 6, 90)
+#if !defined(BBDX_X11) && KWIN_VERSION < KWIN_VERSION_CODE(6, 6, 90)
     static BlurManagerInterface *s_blurManager;
     static QTimer *s_blurManagerRemoveTimer;
 
@@ -241,6 +242,7 @@ private:
     // BBDX Mixins
     bool m_forceContrastParams{false};
     bool m_enableCacheRateLimit{false};
+    BlitMode m_blitMode{BlitMode::RENDER_TARGET};
 
     std::unique_ptr<BBDX::WindowManager> m_windowManager{};
     friend void BBDX::WindowManager::triggerBlurRegionUpdate(KWin::EffectWindow *w) const;
@@ -255,6 +257,7 @@ public:
     WindowManager* windowManager() const { return m_windowManager.get(); }
     BlurCache* blurCache() const { return m_blurCache.get(); }
     bool enableCacheRateLimit() const { return m_enableCacheRateLimit; }
+    BlitMode blitMode() const { return m_blitMode; }
 };
 
 inline bool BlurEffect::provides(Effect::Feature feature)

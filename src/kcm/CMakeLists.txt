@@ -18,10 +18,14 @@ target_link_libraries(kwin_better_blur_dx_config
     Qt6::DBus
 )
 
-if(BETTERBLUR_X11)
+if(BBDX_X11)
+    target_compile_definitions(kwin_better_blur_dx_config PRIVATE BBDX_X11)
     install(TARGETS kwin_better_blur_dx_config DESTINATION ${KDE_INSTALL_PLUGINDIR}/kwin-x11/effects/configs)
 else()
     install(TARGETS kwin_better_blur_dx_config DESTINATION ${KDE_INSTALL_PLUGINDIR}/kwin/effects/configs)
 endif()
 
-add_compile_definitions(ABOUT_VERSION_STRING="${PROJECT_VERSION}")
+# we need access to e.g. settings.hpp
+target_include_directories(kwin_better_blur_dx_config PRIVATE ..)
+
+target_compile_definitions(kwin_better_blur_dx_config PRIVATE ABOUT_VERSION_STRING="${PROJECT_VERSION}")

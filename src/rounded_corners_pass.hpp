@@ -1,5 +1,7 @@
 #pragma once
 
+#include "kwin_compat.hpp"
+
 #include <opengl/glshader.h>
 
 #include <QMatrix4x4>
@@ -47,8 +49,7 @@ public:
      * which should contain the raw un-blurred pixels of the blur area.
      */
     void apply(const KWin::BorderRadius &cornerRadius,
-               const KWin::RenderViewport &viewport,
-               const QRect &scaledBackgroundRect,
+               const KWin::Rect &backgroundRect,
                BBDX::BlurRenderData &renderInfo,
                const KWin::EffectWindow *w,
                const KWin::WindowPaintData &data,

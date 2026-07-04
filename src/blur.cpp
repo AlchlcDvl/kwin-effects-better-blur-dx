@@ -14,6 +14,7 @@
 #include "kwin_compat.hpp"
 #include "refraction_pass.hpp"
 #include "rounded_corners_pass.hpp"
+#include "settings.hpp"
 #include "utils.h"
 #include "window_manager.hpp"
 
@@ -85,7 +86,7 @@ using namespace KWin;
 
 static const QByteArray s_blurAtomName = QByteArrayLiteral("_KDE_NET_WM_BLUR_BEHIND_REGION");
 
-#if !defined(BETTERBLUR_X11) && KWIN_VERSION < KWIN_VERSION_CODE(6, 6, 90)
+#if !defined(BBDX_X11) && KWIN_VERSION < KWIN_VERSION_CODE(6, 6, 90)
 BlurManagerInterface *BlurEffect::s_blurManager = nullptr;
 QTimer *BlurEffect::s_blurManagerRemoveTimer = nullptr;
 
@@ -225,7 +226,7 @@ BlurEffect::BlurEffect()
         net_wm_blur_region = effects->announceSupportProperty(s_blurAtomName, this);
     }
 
-#if !defined(BETTERBLUR_X11) && KWIN_VERSION < KWIN_VERSION_CODE(6, 6, 90)
+#if !defined(BBDX_X11) && KWIN_VERSION < KWIN_VERSION_CODE(6, 6, 90)
     if (!s_blurManagerRemoveTimer) {
         s_blurManagerRemoveTimer = new QTimer(QCoreApplication::instance());
         s_blurManagerRemoveTimer->setSingleShot(true);
@@ -259,7 +260,7 @@ BlurEffect::BlurEffect()
 
     connect(effects, &EffectsHandler::windowAdded, this, &BlurEffect::slotWindowAdded);
     connect(effects, &EffectsHandler::windowDeleted, this, &BlurEffect::slotWindowDeleted);
-#if defined(BETTERBLUR_X11)
+#if defined(BBDX_X11)
     connect(effects, &EffectsHandler::screenRemoved, this, &BlurEffect::slotViewRemoved);
 #else
     connect(effects, &EffectsHandler::viewRemoved, this, &BlurEffect::slotViewRemoved);
@@ -280,7 +281,7 @@ BlurEffect::BlurEffect()
 
 BlurEffect::~BlurEffect()
 {
-#if !defined(BETTERBLUR_X11) && KWIN_VERSION < KWIN_VERSION_CODE(6, 6, 90)
+#if !defined(BBDX_X11) && KWIN_VERSION < KWIN_VERSION_CODE(6, 6, 90)
     // When compositing is restarted, avoid removing the manager immediately.
     if (s_blurManager) {
         s_blurManagerRemoveTimer->start(1000);
@@ -360,6 +361,12 @@ void BlurEffect::reconfigure(ReconfigureFlags flags)
     m_windowManager->reconfigure();
     m_forceContrastParams = BlurConfig::forceContrastParams();
     m_enableCacheRateLimit = BlurConfig::enableCacheRateLimit();
+
+#if defined(BBDX_X11)
+    m_blitMode = BlitMode::RENDER_TARGET;
+#else
+    m_blitMode = static_cast<BlitMode>(BlurConfig::blitMode());
+#endif
 
     int blurStrength = BlurConfig::blurStrength() - 1;
     m_iterationCount = blurStrengthValues[blurStrength].iteration;
@@ -512,7 +519,7 @@ void BlurEffect::slotWindowAdded(EffectWindow *w)
                 updateBlurRegion(w);
             }
         });
-#if !defined(BETTERBLUR_X11) && KWIN_VERSION < KWIN_VERSION_CODE(6, 6, 90)
+#if !defined(BBDX_X11) && KWIN_VERSION < KWIN_VERSION_CODE(6, 6, 90)
         windowContrastChangedConnections[w] = connect(surf, &SurfaceInterface::contrastChanged, this, [this, w]() {
             if (w) {
                 updateBlurRegion(w);
@@ -543,7 +550,7 @@ void BlurEffect::slotWindowDeleted(EffectWindow *w)
         disconnect(*it);
         windowBlurChangedConnections.erase(it);
     }
-#if !defined(BETTERBLUR_X11) && KWIN_VERSION < KWIN_VERSION_CODE(6, 6, 90)
+#if !defined(BBDX_X11) && KWIN_VERSION < KWIN_VERSION_CODE(6, 6, 90)
     if (auto it = windowContrastChangedConnections.find(w); it != windowContrastChangedConnections.end()) {
         disconnect(*it);
         windowContrastChangedConnections.erase(it);
@@ -559,6 +566,9 @@ void BlurEffect::slotViewRemoved(KWin::RenderView *view)
             data.render.erase(it);
         }
     }
+
+    // BBDX: cleanup wallpaper
+    m_blurCache->dropWallpaper(view);
 }
 
 void BlurEffect::slotPropertyNotify(EffectWindow *w, long atom)
@@ -696,7 +706,7 @@ void BlurEffect::prePaintScreen(ScreenPrePaintData &data)
     m_paintedDeviceArea = Region();
     m_currentDeviceBlur = Region();
 #endif // KWIN_VERSION < KWIN_VERSION_CODE(6, 6, 4)
-#if defined(BETTERBLUR_X11)
+#if defined(BBDX_X11)
     m_currentView = data.screen;
 #else
     m_currentView = data.view;
@@ -809,8 +819,12 @@ void BlurEffect::prePaintWindow(RenderView *view, EffectWindow *w, WindowPrePain
 
     // BBDX change:
     // blurred windows should be painted translucent
-    // to avoid issues with repainting
-    if (m_windowManager->windowIsBlurred(w)) {
+    // to avoid issues with repainting because KWin would
+    // cull some areas leading to incomplete blits.
+    //
+    // Wallpaper mode does not need this because it
+    // doesn't rely on blitting
+    if (m_windowManager->windowIsBlurred(w) && m_blitMode != BlitMode::WALLPAPER) {
         data.setTranslucent();
     }
 }
@@ -1074,7 +1088,7 @@ void BlurEffect::blur(const RenderTarget &renderTarget, const RenderViewport &vi
     vbo->setAttribLayout(std::span(GLVertexBuffer::GLVertex2DLayout), sizeof(GLVertex2D));
 
     const int vertexCount = effectiveShape.size() * 6;
-    if (auto result = vbo->map<GLVertex2D>(6 + m_blurCache->addedVertices() + vertexCount)) {
+    if (auto result = vbo->map<GLVertex2D>(6 + vertexCount)) {
         auto map = *result;
 
         size_t vboIndex = 0;
@@ -1121,9 +1135,6 @@ void BlurEffect::blur(const RenderTarget &renderTarget, const RenderViewport &vi
                 .texcoord = QVector2D(u1, v1),
             };
         }
-
-        // BBDX:
-        m_blurCache->setupVBO(map, vboIndex);
 
         // The geometry that will be painted on screen, in device pixels.
         for (const RectF &rect : effectiveShape) {
@@ -1175,7 +1186,7 @@ void BlurEffect::blur(const RenderTarget &renderTarget, const RenderViewport &vi
     vbo->bindArrays();
 
     // BBDX: rate limited
-    if (!renderInfo.cache.get()->isFlushing()) {
+    if (!renderInfo.cache->isFlushing()) {
         const float modulation = opacity * opacity;
         m_blurCache->drawCached(viewport, renderInfo, vbo, vertexCount, modulation);
         return;
@@ -1299,9 +1310,9 @@ void BlurEffect::blur(const RenderTarget &renderTarget, const RenderViewport &vi
         ShaderManager::instance()->pushShader(m_onscreenPass.shader.get());
         } // indent intentional for KWin diff
 
-        // BBDX: MVP matrix maps to scaledBackgroundRect for BlurCache
+        // BBDX: MVP matrix maps to backgroundRect for BlurCache
         QMatrix4x4 projectionMatrix;
-        projectionMatrix.ortho(QRectF(0.0, 0.0, scaledBackgroundRect.width(), scaledBackgroundRect.height()));
+        projectionMatrix.ortho(QRectF(0.0, 0.0, backgroundRect.width(), backgroundRect.height()));
 
         GLFramebuffer::popFramebuffer();
         const auto &read = renderInfo.framebuffers[1];
@@ -1313,7 +1324,7 @@ void BlurEffect::blur(const RenderTarget &renderTarget, const RenderViewport &vi
                                              colorMatrix,
                                              halfpixel,
                                              float(m_offset),
-                                             scaledBackgroundRect)) {
+                                             backgroundRect)) {
         m_onscreenPass.shader->setUniform(m_onscreenPass.mvpMatrixLocation, projectionMatrix);
         m_onscreenPass.shader->setUniform(m_onscreenPass.colorMatrixLocation, colorMatrix);
         m_onscreenPass.shader->setUniform(m_onscreenPass.halfpixelLocation, halfpixel);
@@ -1363,9 +1374,9 @@ void BlurEffect::blur(const RenderTarget &renderTarget, const RenderViewport &vi
         if (GLTexture *noiseTexture = ensureNoiseTexture()) {
             ShaderManager::instance()->pushShader(m_noisePass.shader.get());
 
-            // BBDX: MVP matrix maps to scaledBackgroundRect for BlurCache
+            // BBDX: MVP matrix maps to backgroundRect for BlurCache
             QMatrix4x4 projectionMatrix;
-            projectionMatrix.ortho(QRectF(0.0, 0.0, scaledBackgroundRect.width(), scaledBackgroundRect.height()));
+            projectionMatrix.ortho(QRectF(0.0, 0.0, backgroundRect.width(), backgroundRect.height()));
 
             m_noisePass.shader->setUniform(m_noisePass.mvpMatrixLocation, projectionMatrix);
             m_noisePass.shader->setUniform(m_noisePass.noiseTextureSizeLocation, QVector2D(noiseTexture->width(), noiseTexture->height()));
@@ -1382,7 +1393,7 @@ void BlurEffect::blur(const RenderTarget &renderTarget, const RenderViewport &vi
     }
 
     if (const BorderRadius cornerRadius = m_windowManager->getEffectiveBorderRadius(w); !cornerRadius.isNull()) {
-        m_roundedCornersPass->apply(cornerRadius, viewport, scaledBackgroundRect, renderInfo, w, data, vbo, m_blurCache.get());
+        m_roundedCornersPass->apply(cornerRadius, backgroundRect, renderInfo, w, data, vbo, m_blurCache.get());
     }
     } // indent intentional for KWin diff
 
