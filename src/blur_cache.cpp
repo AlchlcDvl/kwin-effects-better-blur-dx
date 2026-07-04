@@ -323,10 +323,10 @@ void BBDX::BlurCache::flushAccumulatedDirtyRegions(KWin::ScreenPrePaintData &dat
 
                 default:
                     // flush at ~30fps in normal mode
-                    std::chrono::milliseconds flushInterval{33};
                     if (m_effect->enableCacheRateLimit()) {
+                        std::chrono::milliseconds flushInterval{33};
                         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - cacheEntry->lastFlush());
-                        if (elapsed.count() < flushInterval) {
+                        if (elapsed > flushInterval) {
                             cacheEntry->flush();
                         }
                     }
