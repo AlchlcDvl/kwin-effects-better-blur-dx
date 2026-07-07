@@ -257,14 +257,14 @@ public:
      *
      * Adds BlurCache::addedVertices() vertices
      */
+    uint addedVertices() const;
     void setupVBO(std::span<KWin::GLVertex2D> &map, size_t &vboIndex) const;
-    uint addedVertices() const { return 6; }
 
     /**
      * Start indices and vert count of stuff in the VBO
      */
     uint vboStartCache() const { return 6; }
-    uint vboCountCache() const { return 6; }
+    uint vboCountCache() const { return addedVertices(); }
     uint vboStartScreen() const { return vboStartCache() + vboCountCache(); }
 
     /**

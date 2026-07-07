@@ -327,13 +327,17 @@ void BBDX::BlurCache::preparePaintData(const KWin::RenderTarget *renderTarget,
     }
 }
 
+uint BBDX::BlurCache::addedVertices() const {
+    return m_paintData.dirtyRegion->rects().size() * 6;
+}
+
 void BBDX::BlurCache::setupVBO(std::span<KWin::GLVertex2D> &map, size_t &vboIndex) const {
     const auto backgroundRect = m_paintData.backgroundRect;
+    const auto dirtyRegion = m_paintData.dirtyRegion;
 
     // The geometry used for the cache, in logical pixels
-    // but scaled to what would be drawn on the device.
-    {
-        const QRectF localRect = QRectF(0, 0, backgroundRect->width(), backgroundRect->height());
+    for (const auto &rect : dirtyRegion->rects()) {
+        const auto localRect = rect.translated(-backgroundRect->topLeft());
 
         const float x0 = localRect.left();
         const float y0 = localRect.top();
@@ -346,29 +350,29 @@ void BBDX::BlurCache::setupVBO(std::span<KWin::GLVertex2D> &map, size_t &vboInde
         const float v1 = 1.0f - y1 / backgroundRect->height();
 
         // first triangle
-        map[vboIndex++] = KWin::GLVertex2D{
+        map[vboIndex++] = GLVertex2D{
             .position = QVector2D(x0, y0),
             .texcoord = QVector2D(u0, v0),
         };
-        map[vboIndex++] = KWin::GLVertex2D{
+        map[vboIndex++] = GLVertex2D{
             .position = QVector2D(x1, y1),
             .texcoord = QVector2D(u1, v1),
         };
-        map[vboIndex++] = KWin::GLVertex2D{
+        map[vboIndex++] = GLVertex2D{
             .position = QVector2D(x0, y1),
             .texcoord = QVector2D(u0, v1),
         };
 
         // second triangle
-        map[vboIndex++] = KWin::GLVertex2D{
+        map[vboIndex++] = GLVertex2D{
             .position = QVector2D(x0, y0),
             .texcoord = QVector2D(u0, v0),
         };
-        map[vboIndex++] = KWin::GLVertex2D{
+        map[vboIndex++] = GLVertex2D{
             .position = QVector2D(x1, y0),
             .texcoord = QVector2D(u1, v0),
         };
-        map[vboIndex++] = KWin::GLVertex2D{
+        map[vboIndex++] = GLVertex2D{
             .position = QVector2D(x1, y1),
             .texcoord = QVector2D(u1, v1),
         };
