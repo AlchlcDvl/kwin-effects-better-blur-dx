@@ -1078,6 +1078,11 @@ void BlurEffect::blur(const RenderTarget &renderTarget, const RenderViewport &vi
     }
 
     if (!m_blurCache->useCachedOnly()) {
+        if (!renderInfo.cache.get() || renderInfo.cache.get()->isFlushing()) {
+            for (const auto &dirtyRect : dirtyRegion.rects()) {
+                renderInfo.framebuffers[0]->blitFromRenderTarget(renderTarget, viewport, dirtyRect, dirtyRect.translated(-backgroundRect.topLeft()));
+            }
+        }
     } // indent intentional for KWin diff
 #endif
 
