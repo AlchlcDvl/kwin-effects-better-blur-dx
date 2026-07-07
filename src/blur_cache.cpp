@@ -173,14 +173,15 @@ void BBDX::BlurCacheEntry::maybeExtendFlush() {
 }
 
 void BBDX::BlurCacheEntry::invalidate(const char* msg) {
-    if (!m_invalidated) {
-        m_invalidated = true;
-        if (msg) {
-            qCDebug(BLUR_CACHE) << BBDX::LOG_PREFIX
-                                << "Invalidated cache:" << m_windowClass << "\n"
-                                << "PID:" << m_windowPID << "\n"
-                                << "Reason:" << msg;
-        }
+    if (!m_valid) return;
+
+    m_valid = false;
+
+    if (msg) {
+        qCDebug(BLUR_CACHE) << BBDX::LOG_PREFIX
+                            << "Invalidated cache:" << m_windowClass << "\n"
+                            << "PID:" << m_windowPID << "\n"
+                            << "Reason:" << msg;
     }
 }
 
@@ -227,7 +228,7 @@ void BBDX::BlurCache::preparePaintData(const KWin::RenderTarget *renderTarget,
     };
 
     // create new cache entry if needed
-    if (!cache || cache->invalidated()) {
+    if (!cache || !cache->valid()) {
         cache = BBDX::BlurCacheEntry::create(*m_paintData.backgroundRect,
                                              m_paintData.blitFramebuffer->colorAttachment()->internalFormat(),
                                              m_paintData.window);

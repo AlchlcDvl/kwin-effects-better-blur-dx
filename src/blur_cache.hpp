@@ -83,7 +83,7 @@ class BlurCacheEntry {
      *
      * If you know the GL context is current feel free to just .reset() the unique_ptr
      */
-    bool m_invalidated{false};
+    bool m_valid{true};
 
     /**
      * Some metadata to print on invalidation
@@ -162,7 +162,7 @@ public:
     const KWin::Region& accumulatedDirtyRegion() const { return m_accumulatedDirtyRegion; }
     const std::chrono::steady_clock::time_point& lastFlush() const { return m_lastFlush; }
     bool isFlushing() const { return m_isFlushing; }
-    bool invalidated() const { return m_invalidated; }
+    bool valid() const { return m_valid; }
 };
 
 struct BlurCachePaintData {
