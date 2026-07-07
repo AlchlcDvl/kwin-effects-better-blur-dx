@@ -133,8 +133,8 @@ BlurEffect::BlurEffect()
     ensureResources();
 
     m_onscreenPass.shader = ShaderManager::instance()->generateShaderFromFile(ShaderTrait::MapTexture,
-                                                                              BBDX::shaderFilePath(QStringLiteral(":/effects/better_blur_dx/shaders/vertex.vert")),
-                                                                              BBDX::shaderFilePath(QStringLiteral(":/effects/better_blur_dx/shaders/onscreen.frag")));
+                                                                              BBDX::shaderFilePath(":/effects/better_blur_dx/shaders/vertex.vert"),
+                                                                              BBDX::shaderFilePath(":/effects/better_blur_dx/shaders/onscreen.frag"));
     if (!m_onscreenPass.shader) {
         qCWarning(KWIN_BLUR) << BBDX::LOG_PREFIX << "Failed to load onscreen pass shader";
         return;
@@ -164,8 +164,8 @@ BlurEffect::BlurEffect()
 #endif
 
     m_downsamplePass.shader = ShaderManager::instance()->generateShaderFromFile(ShaderTrait::MapTexture,
-                                                                                BBDX::shaderFilePath(QStringLiteral(":/effects/better_blur_dx/shaders/vertex.vert")),
-                                                                                BBDX::shaderFilePath(QStringLiteral(":/effects/better_blur_dx/shaders/downsample.frag")));
+                                                                                BBDX::shaderFilePath(":/effects/better_blur_dx/shaders/vertex.vert"),
+                                                                                BBDX::shaderFilePath(":/effects/better_blur_dx/shaders/downsample.frag"));
     if (!m_downsamplePass.shader) {
         qCWarning(KWIN_BLUR) << BBDX::LOG_PREFIX << "Failed to load downsampling pass shader";
         return;
@@ -176,8 +176,8 @@ BlurEffect::BlurEffect()
     }
 
     m_upsamplePass.shader = ShaderManager::instance()->generateShaderFromFile(ShaderTrait::MapTexture,
-                                                                              BBDX::shaderFilePath(QStringLiteral(":/effects/better_blur_dx/shaders/vertex.vert")),
-                                                                              BBDX::shaderFilePath(QStringLiteral(":/effects/better_blur_dx/shaders/upsample.frag")));
+                                                                              BBDX::shaderFilePath(":/effects/better_blur_dx/shaders/vertex.vert"),
+                                                                              BBDX::shaderFilePath(":/effects/better_blur_dx/shaders/upsample.frag"));
     if (!m_upsamplePass.shader) {
         qCWarning(KWIN_BLUR) << BBDX::LOG_PREFIX << "Failed to load upsampling pass shader";
         return;
@@ -188,8 +188,8 @@ BlurEffect::BlurEffect()
     }
 
     m_noisePass.shader = ShaderManager::instance()->generateShaderFromFile(ShaderTrait::MapTexture,
-                                                                           BBDX::shaderFilePath(QStringLiteral(":/effects/better_blur_dx/shaders/vertex.vert")),
-                                                                           BBDX::shaderFilePath(QStringLiteral(":/effects/better_blur_dx/shaders/noise.frag")));
+                                                                           BBDX::shaderFilePath(":/effects/better_blur_dx/shaders/vertex.vert"),
+                                                                           BBDX::shaderFilePath(":/effects/better_blur_dx/shaders/noise.frag"));
     if (!m_noisePass.shader) {
         qCWarning(KWIN_BLUR) << BBDX::LOG_PREFIX << "Failed to load noise pass shader";
         return;
@@ -1093,7 +1093,7 @@ void BlurEffect::blur(const RenderTarget &renderTarget, const RenderViewport &vi
     vbo->setAttribLayout(std::span(GLVertexBuffer::GLVertex2DLayout), sizeof(GLVertex2D));
 
     const int vertexCount = effectiveShape.size() * 6;
-    if (auto result = vbo->map<GLVertex2D>(6 + vertexCount)) {
+    if (auto result = vbo->map<GLVertex2D>(6 + m_blurCache->addedVertices() + vertexCount)) {
         auto map = *result;
 
         size_t vboIndex = 0;
@@ -1140,6 +1140,9 @@ void BlurEffect::blur(const RenderTarget &renderTarget, const RenderViewport &vi
                 .texcoord = QVector2D(u1, v1),
             };
         }
+
+        // BBDX:
+        m_blurCache->setupVBO(map, vboIndex);
 
         // The geometry that will be painted on screen, in device pixels.
         for (const RectF &rect : effectiveShape) {

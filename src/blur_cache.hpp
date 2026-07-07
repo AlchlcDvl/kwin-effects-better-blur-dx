@@ -7,6 +7,8 @@
 #include <effect/effect.h>
 #include <epoxy/gl.h>
 
+#include <QObject>
+
 #include <effect/effectwindow.h>
 #include <opengl/glframebuffer.h>
 #include <opengl/glshader.h>
@@ -41,6 +43,12 @@ class BlurCacheEntry {
     std::unique_ptr<KWin::GLFramebuffer> m_cachedFramebuffer{nullptr};
 
     /**
+     * Region that has cached data
+     * Updated by flushed()
+     */
+    KWin::Region m_cachedRegion{};
+
+    /**
      * backgroundRect behind this cache entry
      * updated by BlurCache::preparePaintData()
      */
@@ -64,6 +72,12 @@ class BlurCacheEntry {
     bool m_isFlushing{true};
 
     /**
+     * The cache is always flushed until this is exceeded
+     * mostly to ensure animations finish properly
+     */
+    std::chrono::steady_clock::time_point m_flushingUntil{};
+
+    /**
      * Marks this cache entry invalid (purging it the next paint cycle)
      *
      * This should be used when handling Qt eventloop stuff as the GL context
@@ -71,7 +85,7 @@ class BlurCacheEntry {
      *
      * If you know the GL context is current feel free to just .reset() the unique_ptr
      */
-    bool m_invalidated{false};
+    bool m_valid{true};
 
     /**
      * Some metadata to print on invalidation
@@ -103,6 +117,11 @@ public:
     BlurCacheEntry& operator=(BlurCacheEntry &other) = delete;
 
     /**
+     * Check if the dirtyRegion is fully cached
+     */
+    bool hasCachedRegion(const KWin::Region &dirtyRegion) const;
+
+    /**
      * Add dirtyRegion to accumulatedDirtyRegion
      */
     void accumulateDirtyRegion(const KWin::Region &dirtyRegion);
@@ -112,9 +131,20 @@ public:
      *
      * While flushing abort with abortFlush() or complete with flushed()
      */
-    void flush();
+    void flush(const char *msg = nullptr);
     void abortFlush(const char *msg = nullptr);
-    void flushed();
+    void flushed(const KWin::Region &dirtyRegion);
+
+    /**
+     * Like flush() but keeps the flush alive for
+     * the given duration (mostly to ensure animations complete)
+     */
+    void flushFor(std::chrono::milliseconds duration, const char *msg = nullptr);
+
+    /**
+     * Extend flush while flushFor() duration is not elapsed
+     */
+    void maybeExtendFlush();
 
     /**
      * Invalidate cache entry
@@ -134,7 +164,7 @@ public:
     const KWin::Region& accumulatedDirtyRegion() const { return m_accumulatedDirtyRegion; }
     const std::chrono::steady_clock::time_point& lastFlush() const { return m_lastFlush; }
     bool isFlushing() const { return m_isFlushing; }
-    bool invalidated() const { return m_invalidated; }
+    bool valid() const { return m_valid; }
 };
 
 struct BlurCachePaintData {
@@ -161,9 +191,17 @@ struct WallpaperData {
     KWin::RectF geometry;
     std::unique_ptr<KWin::GLFramebuffer> framebuffer;
     std::unique_ptr<KWin::GLTexture> texture;
+
+    // underlying window and whether it was marked damaged
+    KWin::Window *window{};
+    bool damaged{false};
+
+    // connection to the underlying desktop window's damaged signal
+    QMetaObject::Connection connection;
 };
 
-class BlurCache {
+class BlurCache : public QObject {
+    Q_OBJECT
 private:
     struct {
         std::unique_ptr<KWin::GLShader> shader;
@@ -187,6 +225,12 @@ private:
      * use create()
      */
     BlurCache() = default;
+
+public Q_SLOTS:
+    /**
+     * Called whenever a wallpaper window marks itself damaged
+     */
+    void slotWallpaperDamaged(KWin::Window *window);
 
 public:
     /**
@@ -229,14 +273,14 @@ public:
      *
      * Adds BlurCache::addedVertices() vertices
      */
+    uint addedVertices() const;
     void setupVBO(std::span<KWin::GLVertex2D> &map, size_t &vboIndex) const;
-    uint addedVertices() const { return 6; }
 
     /**
      * Start indices and vert count of stuff in the VBO
      */
-    uint vboStartCache() const { return 0; }
-    uint vboCountCache() const { return 6; }
+    uint vboStartCache() const { return 6; }
+    uint vboCountCache() const { return addedVertices(); }
     uint vboStartScreen() const { return vboStartCache() + vboCountCache(); }
 
     /**

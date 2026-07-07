@@ -7,6 +7,7 @@
 #include "utils.h"
 
 #include <epoxy/gl.h>
+#include <qloggingcategory.h>
 #include <scene/scene.h>
 #include <sys/types.h>
 
@@ -103,6 +104,16 @@ std::unique_ptr<BBDX::BlurCacheEntry> BBDX::BlurCacheEntry::create(const KWin::R
     return entry;
 }
 
+bool BBDX::BlurCacheEntry::hasCachedRegion(const KWin::Region &dirtyRegion) const {
+    for (const auto &rect : dirtyRegion.rects()) {
+        if (!m_cachedRegion.contains(rect.translated(-m_backgroundRect.topLeft()))) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 void BBDX::BlurCacheEntry::accumulateDirtyRegion(const KWin::Region &dirtyRegion) {
     for (const auto &rect : dirtyRegion.rects()) {
         m_accumulatedDirtyRegion |= rect;
@@ -112,41 +123,80 @@ void BBDX::BlurCacheEntry::accumulateDirtyRegion(const KWin::Region &dirtyRegion
     m_accumulatedDirtyRegion &= m_backgroundRect;
 }
 
-void BBDX::BlurCacheEntry::flush() {
+void BBDX::BlurCacheEntry::flush(const char *msg) {
+    if (m_isFlushing) return;
+
     m_isFlushing = true;
+
+    if (msg) {
+        qCDebug(BLUR_CACHE) << BBDX::LOG_PREFIX
+                            << "Triggered flush:" << m_windowClass << "\n"
+                            << "PID:" << m_windowPID << "\n"
+                            << "Reason:" << msg;
+    }
 }
 
 
 void BBDX::BlurCacheEntry::abortFlush(const char *msg) {
-    if (m_isFlushing) {
-        m_isFlushing = false;
-        if (msg) {
-            qCDebug(BLUR_CACHE) << BBDX::LOG_PREFIX
-                                << "Aborted flush:" << m_windowClass << "\n"
-                                << "PID:" << m_windowPID << "\n"
-                                << "Reason:" << msg;
-        }
+    if (!m_isFlushing) return;
+
+    m_isFlushing = false;
+
+    if (msg) {
+        qCDebug(BLUR_CACHE) << BBDX::LOG_PREFIX
+                            << "Aborted flush:" << m_windowClass << "\n"
+                            << "PID:" << m_windowPID << "\n"
+                            << "Reason:" << msg;
     }
 }
 
-void BBDX::BlurCacheEntry::flushed() {
+void BBDX::BlurCacheEntry::flushed(const KWin::Region &dirtyRegion) {
     if (m_isFlushing) {
+        for (const auto &rect : dirtyRegion.rects()) {
+            m_cachedRegion |= rect.translated(-m_backgroundRect.topLeft());
+        }
+
         m_accumulatedDirtyRegion = KWin::Region{};
         m_lastFlush = std::chrono::steady_clock::now();
         m_isFlushing = false;
     }
 }
 
+void BBDX::BlurCacheEntry::flushFor(std::chrono::milliseconds duration, const char *msg) {
+    flush(msg);
+    m_flushingUntil = std::chrono::steady_clock::now() + duration;
+}
+
+void BBDX::BlurCacheEntry::maybeExtendFlush() {
+    if (std::chrono::steady_clock::now() < m_flushingUntil) {
+        flush();
+    }
+}
+
 void BBDX::BlurCacheEntry::invalidate(const char* msg) {
-    if (!m_invalidated) {
-        m_invalidated = true;
-        if (msg) {
-            qCDebug(BLUR_CACHE) << BBDX::LOG_PREFIX
-                                << "Invalidated cache:" << m_windowClass << "\n"
-                                << "PID:" << m_windowPID << "\n"
-                                << "Reason:" << msg;
+    if (!m_valid) return;
+
+    m_valid = false;
+
+    if (msg) {
+        qCDebug(BLUR_CACHE) << BBDX::LOG_PREFIX
+                            << "Invalidated cache:" << m_windowClass << "\n"
+                            << "PID:" << m_windowPID << "\n"
+                            << "Reason:" << msg;
+    }
+}
+
+void BBDX::BlurCache::slotWallpaperDamaged(KWin::Window *window) {
+    Q_UNUSED(window);
+
+    for (auto &[view, wallpaper] : m_wallpapers) {
+        if (window == wallpaper.window) {
+            wallpaper.damaged = true;
         }
     }
+
+    // now flush and implicitly fetch new wallpaper
+    m_effect->windowManager()->flushAllWindowCaches();
 }
 
 std::unique_ptr<BBDX::BlurCache> BBDX::BlurCache::create(BBDX::BlurEffect *effect) {
@@ -156,8 +206,8 @@ std::unique_ptr<BBDX::BlurCache> BBDX::BlurCache::create(BBDX::BlurEffect *effec
 
     blurCache->m_texturePass.shader = KWin::ShaderManager::instance()->generateShaderFromFile(
         KWin::ShaderTrait::MapTexture,
-        BBDX::shaderFilePath(QStringLiteral(":/effects/better_blur_dx/shaders/vertex.vert")),
-        BBDX::shaderFilePath(QStringLiteral(":/effects/better_blur_dx/shaders/texture.frag"))
+        BBDX::shaderFilePath(":/effects/better_blur_dx/shaders/vertex.vert"),
+        BBDX::shaderFilePath(":/effects/better_blur_dx/shaders/texture.frag")
     );
 
     if (!blurCache->m_texturePass.shader) {
@@ -192,7 +242,7 @@ void BBDX::BlurCache::preparePaintData(const KWin::RenderTarget *renderTarget,
     };
 
     // create new cache entry if needed
-    if (!cache || cache->invalidated()) {
+    if (!cache || !cache->valid()) {
         cache = BBDX::BlurCacheEntry::create(*m_paintData.backgroundRect,
                                              m_paintData.blitFramebuffer->colorAttachment()->internalFormat(),
                                              m_paintData.window);
@@ -206,7 +256,7 @@ void BBDX::BlurCache::preparePaintData(const KWin::RenderTarget *renderTarget,
         }
 
         // flush the new entry immediately
-        cache->flush();
+        cache->flush("Fresh cache entry");
     }
 
     // BBDX: nothing inside backgroundRect was repainted this frame but we have a
@@ -218,9 +268,17 @@ void BBDX::BlurCache::preparePaintData(const KWin::RenderTarget *renderTarget,
     cache->setBackgroundRect(*backgroundRect);
     cache->accumulateDirtyRegion(*dirtyRegion);
 
-    // still not sure if dirtyRegion can even end up empty
-    // but if it is a flush would always end up taking the cache anyway
-    // (no changes to compare). this at least skips some compute
+    cache->maybeExtendFlush();
+
+    // in case the initial cache entry
+    // was only partially filled we always need a flush
+    // to not draw uncached regions
+    if (!cache->hasCachedRegion(*dirtyRegion)) {
+        cache->flush("Incomplete cached region");
+    }
+
+    // dirtyRegion can end up empty in some rare cases
+    // in that case there is nothing to do
     if (dirtyRegion->isEmpty()) {
         cache->abortFlush("Empty dirtyRegion");
     }
@@ -248,6 +306,58 @@ void BBDX::BlurCache::preparePaintData(const KWin::RenderTarget *renderTarget,
     }
 }
 
+uint BBDX::BlurCache::addedVertices() const {
+    return m_paintData.dirtyRegion->rects().size() * 6;
+}
+
+void BBDX::BlurCache::setupVBO(std::span<KWin::GLVertex2D> &map, size_t &vboIndex) const {
+    const auto backgroundRect = m_paintData.backgroundRect;
+    const auto dirtyRegion = m_paintData.dirtyRegion;
+
+    // The geometry used for the cache, in logical pixels
+    for (const auto &rect : dirtyRegion->rects()) {
+        const auto localRect = rect.translated(-backgroundRect->topLeft());
+
+        const float x0 = localRect.left();
+        const float y0 = localRect.top();
+        const float x1 = localRect.right();
+        const float y1 = localRect.bottom();
+
+        const float u0 = x0 / backgroundRect->width();
+        const float v0 = 1.0f - y0 / backgroundRect->height();
+        const float u1 = x1 / backgroundRect->width();
+        const float v1 = 1.0f - y1 / backgroundRect->height();
+
+        // first triangle
+        map[vboIndex++] = GLVertex2D{
+            .position = QVector2D(x0, y0),
+            .texcoord = QVector2D(u0, v0),
+        };
+        map[vboIndex++] = GLVertex2D{
+            .position = QVector2D(x1, y1),
+            .texcoord = QVector2D(u1, v1),
+        };
+        map[vboIndex++] = GLVertex2D{
+            .position = QVector2D(x0, y1),
+            .texcoord = QVector2D(u0, v1),
+        };
+
+        // second triangle
+        map[vboIndex++] = GLVertex2D{
+            .position = QVector2D(x0, y0),
+            .texcoord = QVector2D(u0, v0),
+        };
+        map[vboIndex++] = GLVertex2D{
+            .position = QVector2D(x1, y0),
+            .texcoord = QVector2D(u1, v0),
+        };
+        map[vboIndex++] = GLVertex2D{
+            .position = QVector2D(x1, y1),
+            .texcoord = QVector2D(u1, v1),
+        };
+    }
+}
+
 void BBDX::BlurCache::drawCached(const KWin::RenderViewport &viewport, BBDX::BlurRenderData &renderInfo, KWin::GLVertexBuffer *vbo, const int vertexCount, const float modulation) const {
     const auto &scaledBackgroundRect = *m_paintData.scaledBackgroundRect;
 
@@ -259,7 +369,7 @@ void BBDX::BlurCache::drawCached(const KWin::RenderViewport &viewport, BBDX::Blu
     KWin::GLTexture* read;
     if (const auto &cacheEntry = renderInfo.cache.get()) {
         read = cacheEntry->cachedTexture();
-        cacheEntry->flushed();
+        cacheEntry->flushed(*m_paintData.dirtyRegion);
     } else {
         // bail if we didn't select or add a cache entry
         qCritical(BLUR_CACHE) << BBDX::LOG_PREFIX << "drawCached() called without a valid cache entry";
@@ -313,12 +423,6 @@ void BBDX::BlurCache::flushAccumulatedDirtyRegions(KWin::ScreenPrePaintData &dat
             switch (m_effect->blitMode()) {
                 case BlitMode::WALLPAPER:
                     // never flush automatically in wallpaper mode
-                    //
-                    // TODO: we should still flush on some events
-                    // like wallpaper changing
-                    //
-                    // PlasmaShell exposes org.kde.PlasmaShell.wallpaperChanged(uint screenNum)
-                    // via DBUS which might work as a trigger
                     break;
 
                 default:
@@ -355,13 +459,6 @@ BBDX::WallpaperData* BBDX::BlurCache::getWallpaper() {
     KWin::RenderView *view = const_cast<KWin::RenderView *>(m_paintData.view);
     KWin::RenderTarget *renderTarget = const_cast<KWin::RenderTarget *>(m_paintData.renderTarget);
 
-    // for now only cache for the purpose of reusing
-    // framebuffer + texture if they still fit
-    //
-    // TODO: when the DBUS from plasmashell is set up
-    //       this can be cached and dropped on change only
-    WallpaperData &wallpaper = m_wallpapers[view];
-
     KWin::EffectWindow *desktop{nullptr};
     for (const auto &window : effects->stackingOrder()) {
         if (window->isDesktop() && window->screen() == view->logicalOutput()) {
@@ -375,8 +472,6 @@ BBDX::WallpaperData* BBDX::BlurCache::getWallpaper() {
         return nullptr;
     }
 
-    wallpaper.geometry = view->logicalOutput()->geometryF();
-
     GLenum textureFormat = GL_RGBA8;
     if (renderTarget->texture()) {
         textureFormat = renderTarget->texture()->internalFormat();
@@ -384,8 +479,28 @@ BBDX::WallpaperData* BBDX::BlurCache::getWallpaper() {
 
     const QSize textureSize{(view->logicalOutput()->geometryF().size()).toSize()};
 
-    // realloc framebuffer+texture when needed
-    if (!wallpaper.texture || wallpaper.texture->internalFormat() != textureFormat || wallpaper.texture->size() != textureSize) {
+    const RectF geometry{view->logicalOutput()->geometryF()};
+
+
+    // cached wallpaper
+    WallpaperData &wallpaper = m_wallpapers[view];
+
+    bool textureValid = wallpaper.texture
+                        && wallpaper.texture->internalFormat() == textureFormat
+                        && wallpaper.texture->size() == textureSize;
+
+    // wallpaper (still) valid
+    if (textureValid
+        && wallpaper.geometry == geometry
+        && wallpaper.window == desktop->window()
+        && !wallpaper.damaged) {
+        return &wallpaper;
+    }
+
+    wallpaper.geometry = geometry;
+
+    if (!textureValid) {
+        // realloc framebuffer+texture when needed
         qCDebug(BLUR_CACHE) << BBDX::LOG_PREFIX << "(Re-)Allocating wallpaper buffer";
 
         wallpaper.texture = KWin::GLTexture::allocate(textureFormat, textureSize);
@@ -412,6 +527,14 @@ BBDX::WallpaperData* BBDX::BlurCache::getWallpaper() {
     effects->drawWindow(wallpaperRenderTarget, wallpaperRenderViewport, desktop, KWin::Scene::PAINT_WINDOW_TRANSFORMED, KWin::Region::infinite(), data);
     GLFramebuffer::popFramebuffer();
 
+    wallpaper.window = desktop->window();
+    wallpaper.damaged = false;
+
+    // connection for tracking damage
+    // (explicit disconnect to avoid duplication on realloc)
+    disconnect(wallpaper.connection);
+    wallpaper.connection = connect(desktop->window(), &KWin::Window::damaged, this, &BBDX::BlurCache::slotWallpaperDamaged);
+
     return &wallpaper;
 #endif
 }
@@ -421,6 +544,9 @@ void BBDX::BlurCache::dropWallpaper(KWin::RenderView *view) {
     if (it == m_wallpapers.end()) {
         return;
     }
+
+    // cleanup
+    disconnect(it->second.connection);
 
     qCDebug(BLUR_CACHE) << BBDX::LOG_PREFIX << "Dropping wallpaper buffer";
 
