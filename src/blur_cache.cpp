@@ -194,7 +194,7 @@ void BBDX::BlurCacheEntry::invalidate(uint flags, const char* msg) {
         qCDebug(BLUR_CACHE) << BBDX::LOG_PREFIX
                             << "Invalidated cache:" << m_windowClass << "\n"
                             << "PID:" << m_windowPID << "\n"
-                            << "Flags:" << flagsHandled.join(",").data() << "\n"
+                            << "Flags:" << flagsHandled.join(",") << "\n"
                             << "Reason:" << msg;
     }
 }
