@@ -439,10 +439,17 @@ void BBDX::BlurCache::flushAccumulatedDirtyRegions(KWin::ScreenPrePaintData &dat
                     break;
 
                 default:
-                    // flush at ~30fps in normal mode
-                    if (m_effect->enableCacheRateLimit()) {
-                        std::chrono::milliseconds flushInterval{33};
+                    // configurable flush in normal mode
+                    int interval = m_effect->cacheRateLimit();
+
+                    if (interval <= 0) {
+                        // Unlimited
+                        cacheEntry->flush();
+                    } else {
+                        // Rate limited
+                        std::chrono::milliseconds flushInterval{interval};
                         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - cacheEntry->lastFlush());
+
                         if (elapsed > flushInterval) {
                             cacheEntry->flush();
                         }
@@ -493,7 +500,6 @@ BBDX::WallpaperData* BBDX::BlurCache::getWallpaper() {
     const QSize textureSize{(view->logicalOutput()->geometryF().size()).toSize()};
 
     const RectF geometry{view->logicalOutput()->geometryF()};
-
 
     // cached wallpaper
     WallpaperData &wallpaper = m_wallpapers[view];

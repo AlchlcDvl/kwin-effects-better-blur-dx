@@ -44,7 +44,7 @@ void setTextureSwizzle(KWin::GLTexture *texture);
  * implicitly targets the current attached framebuffer and
  * thus must be called after GLFramebuffer::pushFramebuffer()
  */
-void setGLScissor(const KWin::Region &dirtyRegion, const KWin::Rect &backgroundRect, int expandSize = 150);
+void setGLScissor(const KWin::Region &dirtyRegion, const KWin::Rect &backgroundRect, int expandSize = 8);
 
 /**
  * Cleanup for setGLScissor

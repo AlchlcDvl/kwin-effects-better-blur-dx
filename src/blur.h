@@ -241,8 +241,8 @@ private:
 
     // BBDX Mixins
     bool m_forceContrastParams{false};
-    bool m_enableCacheRateLimit{false};
     BlitMode m_blitMode{BlitMode::RENDER_TARGET};
+    int m_cacheRateLimit{0};
 
     std::unique_ptr<BBDX::WindowManager> m_windowManager{};
     friend void BBDX::WindowManager::triggerBlurRegionUpdate(KWin::EffectWindow *w) const;
@@ -257,8 +257,8 @@ private:
 public:
     WindowManager* windowManager() const { return m_windowManager.get(); }
     BlurCache* blurCache() const { return m_blurCache.get(); }
-    bool enableCacheRateLimit() const { return m_enableCacheRateLimit; }
     BlitMode blitMode() const { return m_blitMode; }
+    int cacheRateLimit() const { return m_cacheRateLimit; }
 };
 
 inline bool BlurEffect::provides(Effect::Feature feature)

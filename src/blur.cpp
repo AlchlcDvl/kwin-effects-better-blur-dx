@@ -360,7 +360,7 @@ void BlurEffect::reconfigure(ReconfigureFlags flags)
     m_refractionPass->reconfigure();
     m_windowManager->reconfigure();
     m_forceContrastParams = BlurConfig::forceContrastParams();
-    m_enableCacheRateLimit = BlurConfig::enableCacheRateLimit();
+    m_cacheRateLimit = BlurConfig::cacheRateLimit();
 
 #if defined(BBDX_X11)
     m_blitMode = BlitMode::RENDER_TARGET;
@@ -371,14 +371,6 @@ void BlurEffect::reconfigure(ReconfigureFlags flags)
     int blurStrength = BlurConfig::blurStrength() - 1;
     m_iterationCount = blurStrengthValues[blurStrength].iteration;
     m_offset = blurStrengthValues[blurStrength].offset;
-
-    // BBDX: Override iterations for performance if the user configured it
-    int customIterations = BlurConfig::downsampleIterations();
-    if (customIterations > 0) {
-        // Clamp the value safely between 1 and the max defined offsets to prevent crashes
-        m_iterationCount = std::clamp(customIterations, 1, static_cast<int>(blurOffsets.size()));
-    }
-
     m_expandSize = blurOffsets[m_iterationCount - 1].expandSize;
     m_noiseStrength = BlurConfig::noiseStrength();
     m_colorMatrix = colorTransformMatrix(BlurConfig::saturation() / 100.0,
@@ -1083,7 +1075,7 @@ void BlurEffect::blur(const RenderTarget &renderTarget, const RenderViewport &vi
                 renderInfo.framebuffers[0]->blitFromRenderTarget(renderTarget, viewport, dirtyRect, dirtyRect.translated(-backgroundRect.topLeft()));
             }
         }
-    } // indent intentional for KWin diff
+    }
 #endif
 
     // Upload the geometry: the first 6 vertices are used when downsampling and upsampling offscreen,
