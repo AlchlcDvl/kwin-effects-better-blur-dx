@@ -12,6 +12,7 @@
 
 #include <KPluginFactory>
 #include "kwineffects_interface.h"
+#include "settings.hpp"
 
 #include <QFileDialog>
 #include <QPushButton>
@@ -123,6 +124,21 @@ void BlurEffectConfig::setupConstraints() {
      */
     ui.kcfg_BlitMode->setEnabled(false);
 #endif
+
+    // wallpaper mode expects the cache
+    auto slotBlitModeChanged = [this](int index) {
+        switch (static_cast<BBDX::BlitMode>(index)) {
+            case BBDX::BlitMode::WALLPAPER:
+                ui.kcfg_BlurCacheIgnore->setEnabled(false);
+                break;
+
+            default:
+                ui.kcfg_BlurCacheIgnore->setEnabled(true);
+                break;
+        }
+    };
+    connect(ui.kcfg_BlitMode, &QComboBox::currentIndexChanged, this, slotBlitModeChanged);
+    slotBlitModeChanged(ui.kcfg_BlitMode->currentIndex());
 }
 
 void BlurEffectConfig::slotRefractionModeChanged(int index) {
