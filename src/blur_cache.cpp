@@ -2,6 +2,8 @@
 
 #include "kwin_compat.hpp"
 
+#include "blurconfig.h"
+
 #include "blur.h"
 #include "settings.hpp"
 #include "utils.h"
@@ -234,6 +236,35 @@ std::unique_ptr<BBDX::BlurCache> BBDX::BlurCache::create(BBDX::BlurEffect *effec
     return blurCache;
 }
 
+void BBDX::BlurCache::reconfigure() {
+#if defined(BBDX_X11)
+    m_blitMode = BlitMode::RENDER_TARGET;
+#else
+    m_blitMode = static_cast<BlitMode>(BlurConfig::blitMode());
+#endif
+
+    m_ignoreCache = BlurConfig::blurCacheIgnore();
+    m_cacheRateLimit = BlurConfig::cacheRateLimit();
+
+    switch (m_blitMode) {
+        case BlitMode::WALLPAPER:
+            // wallpaper mode expects the cache
+            m_ignoreCache = false;
+            break;
+
+        case BlitMode::RENDER_TARGET:
+            break;
+
+        default:
+            qCWarning(BLUR_CACHE) << BBDX::LOG_PREFIX
+                                  << "Invalid BlitMode value:" << m_blitMode << "\n"
+                                  << "Defaulting to BlitMode::RENDER_TARGET";
+            m_blitMode = BlitMode::RENDER_TARGET;
+            break;
+    }
+
+}
+
 void BBDX::BlurCache::preparePaintData(const KWin::RenderTarget *renderTarget,
                                        const KWin::RenderViewport *viewport,
                                        const KWin::RenderView *view,
@@ -281,6 +312,11 @@ void BBDX::BlurCache::preparePaintData(const KWin::RenderTarget *renderTarget,
     cache->setBackgroundRect(*backgroundRect);
     cache->accumulateDirtyRegion(*dirtyRegion);
 
+    // always flush if the user says that's what they want
+    if (m_ignoreCache) {
+        cache->flush();
+    }
+
     cache->maybeExtendFlush();
 
     // in case the initial cache entry
@@ -298,7 +334,7 @@ void BBDX::BlurCache::preparePaintData(const KWin::RenderTarget *renderTarget,
 
     // when flushing we need the updated blit
     if (cache->isFlushing()) {
-        if (m_effect->blitMode() == BlitMode::WALLPAPER) {
+        if (m_blitMode == BlitMode::WALLPAPER) {
             auto wallpaper = getWallpaper();
             if (!wallpaper) {
                 qCWarning(BLUR_CACHE) << BBDX::LOG_PREFIX << "Failed to get WallpaperData";
@@ -433,21 +469,19 @@ void BBDX::BlurCache::flushAccumulatedDirtyRegions(KWin::ScreenPrePaintData &dat
 
             // automatic periodic flush
             // external flushes are picked up either way
-            switch (m_effect->blitMode()) {
+            switch (m_blitMode) {
                 case BlitMode::WALLPAPER:
                     // never flush automatically in wallpaper mode
                     break;
 
                 default:
                     // configurable flush in normal mode
-                    int interval = m_effect->cacheRateLimit();
-
-                    if (interval <= 0) {
+                    if (m_cacheRateLimit <= 0) {
                         // Unlimited
                         cacheEntry->flush();
                     } else {
                         // Rate limited
-                        std::chrono::milliseconds flushInterval{interval};
+                        std::chrono::milliseconds flushInterval{m_cacheRateLimit};
                         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - cacheEntry->lastFlush());
 
                         if (elapsed > flushInterval) {

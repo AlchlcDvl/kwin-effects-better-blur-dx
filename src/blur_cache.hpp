@@ -1,6 +1,7 @@
 #pragma once
 
 #include "kwin_compat.hpp"
+#include "settings.hpp"
 
 #include <chrono>
 #include <core/renderviewport.h>
@@ -238,6 +239,13 @@ private:
     std::unordered_map<KWin::RenderView *, WallpaperData> m_wallpapers{};
 
     /**
+     * User settings
+     */
+    BlitMode m_blitMode{BlitMode::RENDER_TARGET};
+    bool m_ignoreCache{false};
+    int m_cacheRateLimit{0};
+
+    /**
      * use create()
      */
     BlurCache() = default;
@@ -254,6 +262,18 @@ public:
      * nullptr on error
      */
     static std::unique_ptr<BlurCache> create(BlurEffect *effect);
+
+    /**
+     * reconfigure() hook
+     */
+    void reconfigure();
+
+    /**
+     * Getters
+     */
+    BlitMode blitMode() const { return m_blitMode; }
+    bool ignoreCache() const { return m_ignoreCache; }
+    int cacheRateLimit() const { return m_cacheRateLimit; }
 
     /**
      * Prepare the cache for this paint
