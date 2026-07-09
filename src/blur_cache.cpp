@@ -535,6 +535,7 @@ BBDX::WallpaperData* BBDX::BlurCache::getWallpaper() {
 
     const RectF geometry{view->logicalOutput()->geometryF()};
 
+
     // cached wallpaper
     WallpaperData &wallpaper = m_wallpapers[view];
 
