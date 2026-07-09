@@ -78,5 +78,8 @@ class3</default>
             </choices>
             <default>BlitMode::RENDER_TARGET</default>
         </entry>
+        <entry name="BlurCacheIgnore" type="Bool">
+            <default>false</default>
+        </entry>
     </group>
 </kcfg>

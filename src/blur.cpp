@@ -359,12 +359,8 @@ void BlurEffect::reconfigure(ReconfigureFlags flags)
     BlurConfig::self()->read();
     m_refractionPass->reconfigure();
     m_windowManager->reconfigure();
+    m_blurCache->reconfigure();
     m_forceContrastParams = BlurConfig::forceContrastParams();
-#if defined(BBDX_X11)
-    m_blitMode = BlitMode::RENDER_TARGET;
-#else
-    m_blitMode = static_cast<BlitMode>(BlurConfig::blitMode());
-#endif
 
     int blurStrength = BlurConfig::blurStrength() - 1;
     m_iterationCount = blurStrengthValues[blurStrength].iteration;
@@ -814,7 +810,7 @@ void BlurEffect::prePaintWindow(RenderView *view, EffectWindow *w, WindowPrePain
     //
     // Wallpaper mode does not need this because it
     // doesn't rely on blitting
-    if (m_windowManager->windowIsBlurred(w) && m_blitMode != BlitMode::WALLPAPER) {
+    if (m_windowManager->windowIsBlurred(w) && m_blurCache->blitMode() != BlitMode::WALLPAPER) {
         data.setTranslucent();
     }
 }
