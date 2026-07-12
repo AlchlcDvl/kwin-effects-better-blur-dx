@@ -85,3 +85,12 @@ KWin::Rect BBDX::rectRoundedOut(KWin::RectF rect) {
     return rect.roundedIn();
 #endif
 }
+
+KWin::RegionF BBDX::regionTranslatedF(KWin::RegionF region, QPointF translation) {
+#if KWIN_VERSION < KWIN_VERSION_CODE(6, 6, 90)
+    // < 6.7 maps RegionF to integral (Q)Region
+    return region.translated(translation.toPoint());
+#else
+    return region.translated(translation);
+#endif
+}
