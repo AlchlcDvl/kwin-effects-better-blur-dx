@@ -14,6 +14,19 @@ uniform int refractionMode; // 0: Basic, 1: Concave
 
 varying vec2 uv;
 
+const float weights[8] = float[](1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0);
+const float weightSum = 12.0;
+const vec2 baseOffsets[8] = vec2[](
+    vec2(-2.0, 0.0),
+    vec2(-1.0, 1.0),
+    vec2(0.0, 2.0),
+    vec2(1.0, 1.0),
+    vec2(2.0, 0.0),
+    vec2(1.0, -1.0),
+    vec2(0.0, -2.0),
+    vec2(-1.0, -1.0)
+);
+
 vec2 applyTextureRepeatMode(vec2 coord)
 {
     if (refractionTextureRepeatMode == 0) {
@@ -69,25 +82,16 @@ float roundedRectangleDist(vec2 p, vec2 b, float r)
 
 void main(void)
 {
-    vec2 offsets[8] = vec2[](
-        vec2(-halfpixel.x * 2.0, 0.0),
-        vec2(-halfpixel.x, halfpixel.y),
-        vec2(0.0, halfpixel.y * 2.0),
-        vec2(halfpixel.x, halfpixel.y),
-        vec2(halfpixel.x * 2.0, 0.0),
-        vec2(halfpixel.x, -halfpixel.y),
-        vec2(0.0, -halfpixel.y * 2.0),
-        vec2(-halfpixel.x, -halfpixel.y)
-    );
-    float weights[8] = float[](1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0);
-    float weightSum = 12.0;
     vec4 sum = vec4(0, 0, 0, 0);
 
     vec2 halfRefractionRectSize = 0.5 * refractionRectSize;
     vec2 position = uv * refractionRectSize - halfRefractionRectSize.xy;
+
     float cornerR = min(refractionCornerRadiusPixels, min(halfRefractionRectSize.x, halfRefractionRectSize.y));
     float distConcave = roundedRectangleDist(position, halfRefractionRectSize, cornerR);
     float distBulge = roundedRectangleDist(position, halfRefractionRectSize, refractionEdgeSizePixels);
+
+    vec2 coordR, coordG, coordB;
 
     // Different refraction behavior depending on mode
     if (refractionMode == 1) {
@@ -100,23 +104,13 @@ void main(void)
         float shaped = sin(pow(edgeProximity, refractionNormalPow) * 1.57079632679);
 
         vec2 fromCenter = uv - vec2(0.5);
-        float scaleR = 1.0 - shaped * baseStrength * (1.0 + fringing);
-        float scaleG = 1.0 - shaped * baseStrength;
-        float scaleB = 1.0 - shaped * baseStrength * (1.0 - fringing);
 
-        vec2 coordR = applyTextureRepeatMode(vec2(0.5) + fromCenter * scaleR);
-        vec2 coordG = applyTextureRepeatMode(vec2(0.5) + fromCenter * scaleG);
-        vec2 coordB = applyTextureRepeatMode(vec2(0.5) + fromCenter * scaleB);
+        vec3 scales = 1.0 - shaped * baseStrength * vec3(1.0 + fringing, 1.0, 1.0 - fringing);
 
-        for (int i = 0; i < 8; ++i) {
-            vec2 off = offsets[i] * offset;
-            sum.r += texture2D(texUnit, coordR + off).r * weights[i];
-            sum.g += texture2D(texUnit, coordG + off).g * weights[i];
-            sum.b += texture2D(texUnit, coordB + off).b * weights[i];
-            sum.a += texture2D(texUnit, coordG + off).a * weights[i];
-        }
+        coordR = applyTextureRepeatMode(vec2(0.5) + fromCenter * scales.r);
+        coordG = applyTextureRepeatMode(vec2(0.5) + fromCenter * scales.g);
+        coordB = applyTextureRepeatMode(vec2(0.5) + fromCenter * scales.b);
 
-        sum /= weightSum;
     } else {
         // Basic: convex/bulge-like along inward normal from the rounded-rect edge
         float concaveFactor = pow(clamp(1.0 + distBulge / refractionEdgeSizePixels, 0.0, 1.0), refractionNormalPow);
@@ -124,8 +118,10 @@ void main(void)
         // Initial 2D normal
         const float h = 1.0;
         vec2 gradient = vec2(
-            roundedRectangleDist(position + vec2(h, 0), halfRefractionRectSize, refractionEdgeSizePixels) - roundedRectangleDist(position - vec2(h, 0), halfRefractionRectSize, refractionEdgeSizePixels),
-            roundedRectangleDist(position + vec2(0, h), halfRefractionRectSize, refractionEdgeSizePixels) - roundedRectangleDist(position - vec2(0, h), halfRefractionRectSize, refractionEdgeSizePixels)
+            roundedRectangleDist(position + vec2(h, 0.0), halfRefractionRectSize, refractionEdgeSizePixels) -
+            roundedRectangleDist(position - vec2(h, 0.0), halfRefractionRectSize, refractionEdgeSizePixels),
+            roundedRectangleDist(position + vec2(0.0, h), halfRefractionRectSize, refractionEdgeSizePixels) -
+            roundedRectangleDist(position - vec2(0.0, h), halfRefractionRectSize, refractionEdgeSizePixels)
         );
 
         vec2 normal = length(gradient) > 1e-6 ? -normalize(gradient) : vec2(0.0, 1.0);
@@ -134,24 +130,25 @@ void main(void)
 
         // Different refraction offsets for each color channel
         float fringingFactor = refractionRGBFringing * 0.3;
-        vec2 refractOffsetR = normal.xy * (finalStrength * (1.0 + fringingFactor)); // Red bends most
-        vec2 refractOffsetG = normal.xy * finalStrength;
-        vec2 refractOffsetB = normal.xy * (finalStrength * (1.0 - fringingFactor)); // Blue bends least
 
-        vec2 coordR = applyTextureRepeatMode(uv - refractOffsetR);
-        vec2 coordG = applyTextureRepeatMode(uv - refractOffsetG);
-        vec2 coordB = applyTextureRepeatMode(uv - refractOffsetB);
+        vec3 fringingMult = vec3(1.0 + fringingFactor, 1.0, 1.0 - fringingFactor);
 
-        for (int i = 0; i < 8; ++i) {
-            vec2 off = offsets[i] * offset;
-            sum.r += texture2D(texUnit, coordR + off).r * weights[i];
-            sum.g += texture2D(texUnit, coordG + off).g * weights[i];
-            sum.b += texture2D(texUnit, coordB + off).b * weights[i];
-            sum.a += texture2D(texUnit, coordG + off).a * weights[i];
-        }
-
-        sum /= weightSum;
+        coordR = applyTextureRepeatMode(uv - normal * (finalStrength * fringingMult.r));
+        coordG = applyTextureRepeatMode(uv - normal * (finalStrength * fringingMult.g));
+        coordB = applyTextureRepeatMode(uv - normal * (finalStrength * fringingMult.b));
     }
 
+    vec2 combinedOffsetScale = halfpixel * offset;
+
+    for (int i = 0; i < 8; ++i) {
+        vec2 off = baseOffsets[i] * combinedOffsetScale;
+        float weight = weights[i];
+        sum.r += texture2D(texUnit, coordR + off).r * weight;
+        sum.g += texture2D(texUnit, coordG + off).g * weight;
+        sum.b += texture2D(texUnit, coordB + off).b * weight;
+        sum.a += texture2D(texUnit, coordG + off).a * weight;
+    }
+
+    sum /= weightSum;
     gl_FragColor = sum * colorMatrix;
 }

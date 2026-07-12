@@ -274,7 +274,7 @@ void BBDX::BlurCache::preparePaintData(const KWin::RenderTarget *renderTarget,
                                        const KWin::Rect *backgroundRect,
                                        const KWin::Rect *scaledBackgroundRect,
                                        std::unique_ptr<BlurCacheEntry> &cache) {
-    
+
     QList<KWin::Rect> cacheShape{};
     for (const auto &rect : dirtyRegion->rects()) {
         auto clippedLocalRect = rect.intersected(*backgroundRect)

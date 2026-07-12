@@ -35,7 +35,7 @@ void BBDX::setGLScissor(const KWin::Region &dirtyRegion, const KWin::Rect &backg
     const double scaleY{static_cast<double>(texture->height()) / static_cast<double>(backgroundRect.height())};
 
     // slight expansion to ensure we don't cut of edges
-    const KWin::RectF boundingRect{dirtyRegion.translated(-backgroundRect.topLeft()).boundingRect().adjusted(-expandSize, -expandSize, expandSize, expandSize)};
+    const KWin::RectF boundingRect{dirtyRegion.boundingRect().translated(-backgroundRect.topLeft()).adjusted(-expandSize, -expandSize, expandSize, expandSize)};
 
     const double scaledLeft{std::max(0.0, std::floor(boundingRect.left() * scaleX))};
     const double scaledTop{std::max(0.0, std::floor(boundingRect.top() * scaleY))};
