@@ -200,7 +200,13 @@ void BBDX::Window::updateForceBlurRegion() {
     // content at this point has content + decorations
     // so to just get the decorations clip the contentsRect
     if (m_effectwindow->decoration()) {
-        frame = content - BBDX::rectRoundedOut(m_effectwindow->contentsRect());
+        // Grow `contentsRect` by 1px to ensure the content reaches
+        // the decoration and leaves no gap (e.g. Klassy seems to use
+        // integer based blur regions that push the region up due to rounding
+        // when the window is at a fractional position)
+        // Because it's only used for *clipping* `content`
+        // this should never lead to the actual content bleeding out from the window.
+        frame = content - BBDX::rectRoundedOut(m_effectwindow->contentsRect()).adjusted(-1, -1, 1, 1);
     }
 
     // now clip the frame on decorated windows to get the actual content
