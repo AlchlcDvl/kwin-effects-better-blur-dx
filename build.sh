@@ -1,4 +1,13 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+# Quick help message helper
+print_help() {
+    echo "Usage: $0 [OPTIONS]"
+    echo "Options:"
+    echo "  --x11        Build for KWin X11 instead of the Wayland default"
+    echo "  --kinoite    Build an RPM package for Fedora Kinoite"
+    echo "  -h | --help  Displays this message"
+}
 
 # Specific variables for X11 and Fedora Kinoite
 X11_FLAG=""
@@ -6,21 +15,24 @@ KINOITE_MODE=0
 
 # Parsing arguments
 for arg in "$@"; do
-    if [[ "$arg" == "--x11" ]]; then
-        X11_FLAG="-DBBDX_X11=ON"
-    elif [[ "$arg" == "--kinoite" ]]; then
-        KINOITE_MODE=1
-    elif [[ "$arg" == "-h" || "$arg" == "--help" ]]; then
-        echo "Usage: $0 [OPTIONS]"
-        echo "Options:"
-        echo "  --x11        Build for KWin X11 instead of the Wayland default"
-        echo "  --kinoite    Build an RPM package for Fedora Kinoite"
-        echo "  -h | --help  Displays this message"
-        exit 0
-    else
-        echo "Unknown parameter passed: $arg"
-        exit 1
-    fi
+    case "$arg" in
+        --x11)
+            X11_FLAG="-DBBDX_X11=ON"
+            ;;
+        --kinoite)
+            KINOITE_MODE=1
+            ;;
+        -h|--help)
+            print_help
+            exit 0
+            ;;
+        *)
+            echo "Unknown parameter passed: $arg"
+            echo ""
+            print_help
+            exit 1
+            ;;
+    esac
 done
 
 # Common building part of both regular and fedora kinoite versions
