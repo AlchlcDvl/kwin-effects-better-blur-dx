@@ -43,8 +43,8 @@ void BBDX::setGLScissor(const KWin::Region &dirtyRegion, const KWin::Rect &backg
     const double scaledBottom{std::min(static_cast<double>(texture->height()), std::ceil(boundingRect.bottom() * scaleY))};
 
     // 1 <= scissor width/height <= texture width/height
-    const int glWidth{std::min(std::max(static_cast<int>(scaledRight - scaledLeft), 1), texture->width())};
-    const int glHeight{std::min(std::max(static_cast<int>(scaledBottom - scaledTop), 1), texture->height())};
+    const int glWidth{std::min(std::max(static_cast<int>(std::ceil(scaledRight - scaledLeft)), 1), texture->width())};
+    const int glHeight{std::min(std::max(static_cast<int>(std::ceil(scaledBottom - scaledTop)), 1), texture->height())};
 
     // 0 <= scissor x/y
     int glX{std::max(static_cast<int>(scaledLeft), 0)};
