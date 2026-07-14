@@ -361,56 +361,6 @@ void BBDX::BlurCache::preparePaintData(const KWin::RenderTarget *renderTarget,
     }
 }
 
-uint BBDX::BlurCache::addedVertices() const {
-    return m_paintData.cacheShape.size() * 6;
-}
-
-void BBDX::BlurCache::setupVBO(std::span<KWin::GLVertex2D> &map, size_t &vboIndex) const {
-    const auto backgroundRect = m_paintData.backgroundRect;
-    const auto &cacheShape = m_paintData.cacheShape;
-
-    // The geometry used for the cache, in logical pixels
-    for (const auto &rect : cacheShape) {
-        const float x0 = rect.left();
-        const float y0 = rect.top();
-        const float x1 = rect.right();
-        const float y1 = rect.bottom();
-
-        const float u0 = x0 / backgroundRect->width();
-        const float v0 = 1.0f - y0 / backgroundRect->height();
-        const float u1 = x1 / backgroundRect->width();
-        const float v1 = 1.0f - y1 / backgroundRect->height();
-
-        // first triangle
-        map[vboIndex++] = GLVertex2D{
-            .position = QVector2D(x0, y0),
-            .texcoord = QVector2D(u0, v0),
-        };
-        map[vboIndex++] = GLVertex2D{
-            .position = QVector2D(x1, y1),
-            .texcoord = QVector2D(u1, v1),
-        };
-        map[vboIndex++] = GLVertex2D{
-            .position = QVector2D(x0, y1),
-            .texcoord = QVector2D(u0, v1),
-        };
-
-        // second triangle
-        map[vboIndex++] = GLVertex2D{
-            .position = QVector2D(x0, y0),
-            .texcoord = QVector2D(u0, v0),
-        };
-        map[vboIndex++] = GLVertex2D{
-            .position = QVector2D(x1, y0),
-            .texcoord = QVector2D(u1, v0),
-        };
-        map[vboIndex++] = GLVertex2D{
-            .position = QVector2D(x1, y1),
-            .texcoord = QVector2D(u1, v1),
-        };
-    }
-}
-
 void BBDX::BlurCache::drawCached(const KWin::RenderViewport &viewport, BBDX::BlurRenderData &renderInfo, KWin::GLVertexBuffer *vbo, const int vertexCount, const float modulation) const {
     const auto &scaledBackgroundRect = *m_paintData.scaledBackgroundRect;
 
