@@ -64,7 +64,7 @@ void BBDX::RoundedCornersPass::apply(const KWin::BorderRadius &cornerRadius,
         projectionMatrix.ortho(QRectF(0.0, 0.0, backgroundRect.width(), backgroundRect.height()));
 
         // we want to mask the corners of what is already cached
-        const auto &read = renderInfo.cache.get()->cachedFramebuffer();
+        const auto &read = renderInfo.cache->cachedFramebuffer();
 
         const KWin::RectF transformedRect = KWin::RectF{
             w->frameGeometry().x() + data.xTranslation() / data.xScale(),
