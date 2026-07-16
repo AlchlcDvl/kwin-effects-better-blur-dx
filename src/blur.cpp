@@ -1001,25 +1001,7 @@ void BlurEffect::blur(const RenderTarget &renderTarget, const RenderViewport &vi
         textureFormat = renderTarget.texture()->internalFormat();
     }
 
-    // Check if we actually need new buffers.
-    // We only reallocate if the format changes, the iteration count changes,
-    // or if the new backgroundRect is LARGER than our currently allocated texture.
-    bool needsRealloc = renderInfo.framebuffers.size() != (m_iterationCount + 1) ||
-                        renderInfo.textures[0]->internalFormat() != textureFormat ||
-                        renderInfo.textures[0]->size().width() < backgroundRect.width() ||
-                        renderInfo.textures[0]->size().height() < backgroundRect.height();
-
-    // Optional VRAM optimization: If the window shrank massively (e.g., maximizing then restoring to a tiny window),
-    // free the giant texture to save VRAM. (Checking if current texture is more than 2x the required area).
-    if (!needsRealloc && renderInfo.textures.size() > 0) {
-        int currentArea = renderInfo.textures[0]->size().width() * renderInfo.textures[0]->size().height();
-        int requiredArea = backgroundRect.width() * backgroundRect.height();
-        if (currentArea > requiredArea * 2) {
-            needsRealloc = true;
-        }
-    }
-
-    if (needsRealloc) {
+    if (renderInfo.framebuffers.size() != (m_iterationCount + 1) || renderInfo.textures[0]->size() != backgroundRect.size() || renderInfo.textures[0]->internalFormat() != textureFormat) {
         renderInfo.framebuffers.clear();
         renderInfo.textures.clear();
         // BBDX:
