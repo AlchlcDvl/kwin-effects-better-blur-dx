@@ -234,10 +234,7 @@ void BBDX::Window::updateForceBlurRegion() {
         if (!opaque.isEmpty()) {
             const auto clientTopLeft = m_effectwindow->clientGeometry().topLeft();
             const auto frameTopLeft = m_effectwindow->frameGeometry().topLeft();
-            content = BBDX::regionTranslatedF(
-                BBDX::regionTranslatedF(content, frameTopLeft) & BBDX::regionTranslatedF(opaque, clientTopLeft).boundingRect(),
-                -frameTopLeft
-            );
+            content = content & BBDX::regionTranslatedF(opaque, -(clientTopLeft - frameTopLeft)).boundingRect();
         }
     }
 
