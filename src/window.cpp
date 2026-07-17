@@ -232,9 +232,9 @@ void BBDX::Window::updateForceBlurRegion() {
         qCDebug(BBDX_WINDOW) << "opaque region:" << opaque;
 
         if (!opaque.isEmpty()) {
-            const auto clientTopLeft = m_effectwindow->clientGeometry().topLeft();
+            const auto clientTopLeft = m_effectwindow->bufferGeometry().topLeft();
             const auto frameTopLeft = m_effectwindow->frameGeometry().topLeft();
-            content = content & BBDX::regionTranslatedF(opaque, -(clientTopLeft - frameTopLeft)).boundingRect();
+            content &= BBDX::regionTranslatedF(opaque, -(clientTopLeft - frameTopLeft)).boundingRect();
         }
     }
 
