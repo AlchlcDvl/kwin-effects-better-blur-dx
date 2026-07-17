@@ -10,7 +10,9 @@
 #include <effect/effectwindow.h>
 #include <effect/globals.h>
 #include <scene/borderradius.h>
+#include <wayland/surface.h>
 #include <window.h>
+#include <x11window.h>
 
 #if KWIN_VERSION >= KWIN_VERSION_CODE(6, 5, 80)
 #  include <core/region.h>
@@ -212,6 +214,23 @@ void BBDX::Window::updateForceBlurRegion() {
     // now clip the frame on decorated windows to get the actual content
     for (const auto &rect : frame.rects()) {
         content -= rect;
+    }
+
+    // if the window isn't decorated (no frame)
+    // we'll additionally clip by the window's opaque region
+    // to avoid bleeding into CSD shadows which are sometimes
+    // part of frameGeometry
+    if (frame.isEmpty()) {
+        KWin::RegionF opaque;
+        if (const auto surface = m_effectwindow->surface()) {
+            opaque = surface->opaque();
+        } else if (const auto x11window = qobject_cast<KWin::X11Window *>(m_effectwindow->window())) {
+            opaque = x11window->opaqueRegion();
+        }
+
+        if (!opaque.isEmpty()) {
+            content &= opaque.boundingRect();
+        }
     }
 
     // unchanged
