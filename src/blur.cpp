@@ -626,6 +626,11 @@ bool BlurEffect::supported()
         return false;
     }
 
+    if (!context->supportsTextureSwizzle()) {
+        qCWarning(KWIN_BLUR) << BBDX::LOG_PREFIX << "Effect unsupported: OpenGL context does not support texture swizzle (GL_ARB_texture_swizzle)";
+        return false;
+    }
+
     qCInfo(KWIN_BLUR) << BBDX::LOG_PREFIX << "Effect supported";
     return true;
 }
@@ -1383,14 +1388,10 @@ void BlurEffect::blur(const RenderTarget &renderTarget, const RenderViewport &vi
 
         glDisable(GL_BLEND);
     }
-
-    if (const BorderRadius cornerRadius = m_windowManager->getEffectiveBorderRadius(w); !cornerRadius.isNull()) {
-        m_roundedCornersPass->apply(cornerRadius, backgroundRect, renderInfo, w, data, vbo, m_blurCache.get());
-    }
     } // indent intentional for KWin diff
 
     // BBDX:
-    BBDX::clearGLScissor();
+    m_roundedCornersPass->apply(m_windowManager.get(), backgroundRect, w, data, vbo, m_blurCache.get(), renderInfo.cache.get());
     m_blurCache->drawCached(viewport, renderInfo, vbo, vertexCount, modulation);
 
     vbo->unbindArrays();

@@ -17,5 +17,5 @@ void main(void)
     float df = fwidth(f);
     float alpha = clamp(0.5 - f / df, 0.0, 1.0);
 
-    gl_FragColor = fragColor * alpha;
+    gl_FragColor = vec4(fragColor.rgb, alpha);
 }
