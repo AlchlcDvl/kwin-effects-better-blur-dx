@@ -9,8 +9,11 @@
 #include <effect/effecthandler.h>
 #include <effect/effectwindow.h>
 #include <effect/globals.h>
+#include <qloggingcategory.h>
 #include <scene/borderradius.h>
+#include <wayland/surface.h>
 #include <window.h>
+#include <x11window.h>
 
 #if KWIN_VERSION >= KWIN_VERSION_CODE(6, 5, 80)
 #  include <core/region.h>
@@ -214,6 +217,27 @@ void BBDX::Window::updateForceBlurRegion() {
         content -= rect;
     }
 
+    // if the window isn't decorated (no frame)
+    // we'll additionally clip by the window's opaque region
+    // to avoid bleeding into CSD shadows which are sometimes
+    // part of frameGeometry
+    if (frame.isEmpty()) {
+        KWin::RegionF opaque{};
+        if (const auto surface = m_effectwindow->surface()) {
+            opaque = surface->opaque();
+        } else if (const auto x11window = qobject_cast<KWin::X11Window *>(m_effectwindow->window())) {
+            opaque = x11window->opaqueRegion();
+        }
+        
+        qCDebug(BBDX_WINDOW) << "opaque region:" << opaque;
+
+        if (!opaque.isEmpty()) {
+            const auto clientTopLeft = m_effectwindow->bufferGeometry().topLeft();
+            const auto frameTopLeft = m_effectwindow->frameGeometry().topLeft();
+            content &= BBDX::regionTranslatedF(opaque, clientTopLeft - frameTopLeft).boundingRect();
+        }
+    }
+
     // unchanged
     if (content == m_forceBlurContent && frame == m_forceBlurFrame) {
         return;
@@ -322,16 +346,6 @@ bool BBDX::Window::neverForceBlur() const {
     if ((windowClass == "spectacle" || windowClass == "org.kde.spectacle")
         && (layer == KWin::Layer::OverlayLayer || layer == KWin::Layer::ActiveLayer))
         return true;
-
-    // Some application-managed popups (notably browser extension panels on Wayland)
-    // show up as undecorated Unknown windows with no caption. They don't expose a
-    // useful opaque region to the compositor, so force-blurring them produces a
-    // rectangular halo around the popup body.
-    if (effectwindow()->windowType() == KWin::WindowType::Unknown
-        && !effectwindow()->hasDecoration()
-        && effectwindow()->caption().isEmpty()) {
-        return true;
-    }
 
     // don't touch KWin internal windows
     // this includes the snapping assistant zones
