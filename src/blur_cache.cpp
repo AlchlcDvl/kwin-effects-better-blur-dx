@@ -393,6 +393,12 @@ void BBDX::BlurCache::drawCached(const KWin::RenderViewport &viewport, BBDX::Blu
     read->bind();
 
     /**
+     * KWin's RenderTarget's alpha channel is expected to stay untouched (at 1.0)
+     * else it may cause artifacts when the scene is drawn.
+     */
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE);
+
+    /**
      * modulation is applied to alpha in the shader (i.e. affects GL_SRC_ALPHA)
      * RGB on either side (blur/scene) is *not* pre-multiplied
      * 
@@ -413,6 +419,7 @@ void BBDX::BlurCache::drawCached(const KWin::RenderViewport &viewport, BBDX::Blu
     vbo->draw(GL_TRIANGLES, vboStartScreen(), vertexCount);
 
     glDisable(GL_BLEND);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
     KWin::ShaderManager::instance()->popShader();
 }
