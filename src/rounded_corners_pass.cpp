@@ -55,16 +55,8 @@ bool BBDX::RoundedCornersPass::drawRounded(const WindowManager *windowManager,
                                            const int vertexCount,
                                            const float modulation) const {
 
-        if (cornerRadius.isNull()) {
-            // without rounded corners swizzle alpha
-            // channel to 1.0 for future reads
-            // as it may contain garbage otherwise (bad blit or whatever)
-            cacheEntry->cachedTexture()->setSwizzle(GL_RED, GL_GREEN, GL_BLUE, GL_ONE);
-            return;
-        }
-
-        // with rounded corners the shader will properly override the alpha channel
-        cacheEntry->cachedTexture()->setSwizzle(GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA);
+    const auto w = blurCache->paintData().window;
+    const auto cornerRadius = windowManager->getEffectiveBorderRadius(w);
 
     if (cornerRadius.isNull()) {
         return false;
