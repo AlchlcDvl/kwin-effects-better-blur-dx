@@ -7,6 +7,7 @@
 #include "blur.h"
 #include "settings.hpp"
 #include "utils.h"
+#include "rounded_corners_pass.hpp"
 
 #include <epoxy/gl.h>
 #include <qloggingcategory.h>
@@ -230,7 +231,6 @@ std::unique_ptr<BBDX::BlurCache> BBDX::BlurCache::create(BBDX::BlurEffect *effec
         return nullptr;
     } else {
         blurCache->m_texturePass.mvpMatrixLocation = blurCache->m_texturePass.shader->uniformLocation("modelViewProjectionMatrix");
-        blurCache->m_texturePass.modulationLocation = blurCache->m_texturePass.shader->uniformLocation("modulation");
     }
 
     return blurCache;
@@ -268,6 +268,7 @@ void BBDX::BlurCache::reconfigure() {
 void BBDX::BlurCache::preparePaintData(const KWin::RenderTarget *renderTarget,
                                        const KWin::RenderViewport *viewport,
                                        const KWin::RenderView *view,
+                                       const KWin::WindowPaintData *windowPaintData,
                                        const KWin::EffectWindow *window,
                                        const KWin::Region *dirtyRegion,
                                        KWin::GLFramebuffer *blitFramebuffer,
@@ -288,6 +289,7 @@ void BBDX::BlurCache::preparePaintData(const KWin::RenderTarget *renderTarget,
         .renderTarget = renderTarget,
         .viewport = viewport,
         .view = view,
+        .windowPaintData = windowPaintData,
         .window = window,
         .dirtyRegion = dirtyRegion,
         .backgroundRect = backgroundRect,
@@ -367,61 +369,63 @@ void BBDX::BlurCache::preparePaintData(const KWin::RenderTarget *renderTarget,
 }
 
 void BBDX::BlurCache::drawCached(const KWin::RenderViewport &viewport, BBDX::BlurRenderData &renderInfo, KWin::GLVertexBuffer *vbo, const int vertexCount, const float modulation) const {
-    // clear early so it applies even on bail
+    /**
+     * Common setup
+     */
+
+    // Our scissor helper currently isn't implemented
+    // for RenderTarget's offsets (expects topLeft at 0,0)
     BBDX::clearGLScissor();
 
-    const auto &scaledBackgroundRect = *m_paintData.scaledBackgroundRect;
-
-    KWin::ShaderManager::instance()->pushShader(m_texturePass.shader.get());
-
-    QMatrix4x4 projectionMatrix = viewport.projectionMatrix();
-    projectionMatrix.translate(scaledBackgroundRect.x(), scaledBackgroundRect.y());
-
-    KWin::GLTexture* read;
-    if (const auto &cacheEntry = renderInfo.cache.get()) {
-        read = cacheEntry->cachedTexture();
-        cacheEntry->flushed(m_paintData);
-    } else {
-        // bail if we didn't select or add a cache entry
-        qCritical(BLUR_CACHE) << BBDX::LOG_PREFIX << "drawCached() called without a valid cache entry";
-        KWin::ShaderManager::instance()->popShader();
-        return;
-    }
-
-    m_texturePass.shader->setUniform(m_texturePass.mvpMatrixLocation, projectionMatrix);
-    m_texturePass.shader->setUniform(m_texturePass.modulationLocation, modulation);
-    read->bind();
-
-    /**
-     * KWin's RenderTarget's alpha channel is expected to stay untouched (at 1.0)
-     * else it may cause artifacts when the scene is drawn.
-     */
+    // Don't write alpha because KWin's RenderTarget texture might not have it
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE);
 
+    const auto &cacheEntry = renderInfo.cache.get();
+
     /**
-     * modulation is applied to alpha in the shader (i.e. affects GL_SRC_ALPHA)
-     * RGB on either side (blur/scene) is *not* pre-multiplied
-     * 
-     * ff the shader returns alpha...
-     * ... 1.0 (e.g. opaque window surface)
-     *   -> blend sfactor=1.0, dfactor=0.0
-     *     -> full blur
-     * ... 0.5 (e.g. plasma applauncher animation)
-     *   -> blend sfactor=0.5, dfactor=0.5
-     *     -> mixed blur + scene
-     * ... 0.0 (e.g. within rounded corners)
-     *   -> blend sfactor=0.0, dfactor=1.0
-     *     -> full scene
+     * Rounded corners on-screen paint
      */
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    if (m_effect->roundedCornersPass()->drawRounded(m_effect->windowManager(), this, cacheEntry, vbo, vertexCount, modulation)) {
+        goto done;
+    }
 
-    vbo->draw(GL_TRIANGLES, vboStartScreen(), vertexCount);
+    /**
+     * Regular "squared" on-screen paint
+     */
+    {
+        const auto &scaledBackgroundRect = *m_paintData.scaledBackgroundRect;
 
-    glDisable(GL_BLEND);
+        KWin::ShaderManager::instance()->pushShader(m_texturePass.shader.get());
+
+        QMatrix4x4 projectionMatrix = viewport.projectionMatrix();
+        projectionMatrix.translate(scaledBackgroundRect.x(), scaledBackgroundRect.y());
+
+        m_texturePass.shader->setUniform(m_texturePass.mvpMatrixLocation, projectionMatrix);
+
+        cacheEntry->cachedTexture()->bind();
+
+        if (modulation < 1.0) {
+            glEnable(GL_BLEND);
+            glBlendColor(0.0, 0.0, 0.0, modulation);
+            glBlendFunc(GL_CONSTANT_ALPHA, GL_ONE_MINUS_CONSTANT_ALPHA);
+        }
+
+        vbo->draw(GL_TRIANGLES, vboStartScreen(), vertexCount);
+
+        if (modulation < 1.0) {
+            glDisable(GL_BLEND);
+        }
+
+        KWin::ShaderManager::instance()->popShader();
+    }
+
+done:
+    /**
+     * Common cleanup
+     */
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
-    KWin::ShaderManager::instance()->popShader();
+    cacheEntry->flushed(m_paintData);
 }
 
 void BBDX::BlurCache::drawToCache(BBDX::BlurCacheEntry *cache, KWin::GLVertexBuffer *vbo) const {

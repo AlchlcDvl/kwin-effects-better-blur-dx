@@ -1056,6 +1056,7 @@ void BlurEffect::blur(const RenderTarget &renderTarget, const RenderViewport &vi
     m_blurCache->preparePaintData(&renderTarget,
                                   &viewport,
                                   m_currentView,
+                                  &data,
                                   w,
                                   &dirtyRegion,
                                   renderInfo.framebuffers[0].get(),
@@ -1391,7 +1392,6 @@ void BlurEffect::blur(const RenderTarget &renderTarget, const RenderViewport &vi
     } // indent intentional for KWin diff
 
     // BBDX:
-    m_roundedCornersPass->apply(m_windowManager.get(), backgroundRect, w, data, vbo, m_blurCache.get(), renderInfo.cache.get());
     m_blurCache->drawCached(viewport, renderInfo, vbo, vertexCount, modulation);
 
     vbo->unbindArrays();
