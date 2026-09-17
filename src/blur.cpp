@@ -871,6 +871,7 @@ bool BlurEffect::shouldBlur(const EffectWindow *w, int mask, const WindowPaintDa
     return true;
 }
 
+#if KWIN_VERSION < KWIN_VERSION_CODE(6, 7, 90)
 void BlurEffect::drawWindow(const RenderTarget &renderTarget, const RenderViewport &viewport, EffectWindow *w, int mask, const Region &deviceRegion, WindowPaintData &data)
 {
     blur(renderTarget, viewport, w, mask, deviceRegion, data);
@@ -878,6 +879,15 @@ void BlurEffect::drawWindow(const RenderTarget &renderTarget, const RenderViewpo
     // Draw the window over the blurred area
     effects->drawWindow(renderTarget, viewport, w, mask, deviceRegion, data);
 }
+#else
+bool BlurEffect::drawWindow(const RenderTarget &renderTarget, const RenderViewport &viewport, EffectWindow *w, int mask, const Region &deviceRegion, WindowPaintData &data)
+{
+    blur(renderTarget, viewport, w, mask, deviceRegion, data);
+
+    // Draw the window over the blurred area
+    return effects->drawWindow(renderTarget, viewport, w, mask, deviceRegion, data);
+}
+#endif
 
 GLTexture *BlurEffect::ensureNoiseTexture()
 {
