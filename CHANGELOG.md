@@ -1,6 +1,22 @@
 # DEV
 Things not in any tagged release yet:
 
+# 2.6.0
+
+### Features
+- **Plasma 6.8 support**
+- **"Wallpaper" Mode**
+  Behaves similar to the old `kwin-effects-forceblur` "Static Blur"
+  but using the same pipeline as the regular blur (meaning refraction etc. are compatible).
+  This mode is still considered experimental may sometimes have weird behaviour.
+- **Blur Cache Options**
+  You can now change the flush interval (smaller meaning "more FPS")
+  or disable the cache entirely.
+
+### Misc
+- Reworked how rounded corners are masked
+- The CMake option `BETTERBLUR_X11` was renamed to `BBDX_X11`
+
 # 2.5.1
 
 ### Bug Fixes:

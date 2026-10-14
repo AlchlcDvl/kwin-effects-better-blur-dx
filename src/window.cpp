@@ -381,36 +381,18 @@ void BBDX::Window::reconfigure() {
 void BBDX::Window::getFinalBlurRegion(std::optional<KWin::RegionF> &content, std::optional<KWin::RegionF> &frame) {
     const auto oldBlurOriginMask = m_blurOriginMask;
 
-    // always clip blur regions into the frameGeometry
-    // to avoid leaving stripes outside
-    // (usually bottom and/or right side of the window)
-    // The force-blur regiongs are pre-clipped
-    const auto clipRect = BBDX::rectRoundedIn(
-        m_effectwindow->frameGeometry()
-        .translated(-m_effectwindow->frameGeometry().topLeft())
-    );
-
     // If we already have a blur region at this point
     // the window requested it.
     // This tracker allows us to later decide if we want
     // to trust the window or use user parameters
     // e.g. for corner radius.
     if (content.has_value()) {
-        // content is local to contentsRect which is local to frameGeometry
-        const auto contentTopLeft = m_effectwindow->contentsRect().topLeft();
-        content = BBDX::regionTranslatedF(
-            BBDX::regionTranslatedF(*content, contentTopLeft) & clipRect,
-            -contentTopLeft
-        );
-        
         blurOriginSet(BlurOrigin::RequestedContent);
         blurOriginUnset(BlurOrigin::ForcedContent);
     } else {
         blurOriginUnset(BlurOrigin::RequestedContent);
     }
     if (frame.has_value()) {
-        frame = *frame & clipRect;
-
         blurOriginSet(BlurOrigin::RequestedFrame);
         blurOriginUnset(BlurOrigin::ForcedFrame);
     } else {

@@ -9,7 +9,7 @@
 
 stdenv.mkDerivation rec {
   pname = "kwin-better-blur";
-  version = "2.5.1";
+  version = "2.6.0";
 
   src = ./..;
 
